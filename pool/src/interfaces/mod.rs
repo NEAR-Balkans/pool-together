@@ -1,0 +1,84 @@
+pub mod pool {
+
+    use near_sdk::{AccountId, Balance};
+
+    use super::defi::IYieldSource;
+    pub trait IPool{
+        fn assert_correct_token_is_send_to_contract(&self, token: &AccountId);
+        fn get_lottery_asset(&self) -> AccountId;
+        fn send_to_dex(&self);
+        fn get_yield_source(&self) -> Box<dyn IYieldSource>;
+    }
+
+    pub trait ITwab{
+        fn increase_balance(&mut self, account: &AccountId, amount: Balance, current_time: u64);
+        fn decrease_balance(&mut self, account: &AccountId, amount: Balance, current_time: u64);
+        fn increase_total_supply(&mut self, amount: Balance, current_time: u64);
+        fn decrease_total_supply(&mut self, amount: Balance, current_time: u64);
+
+        fn average_balance_between_timestamps(
+            &self, 
+            account: &AccountId, 
+            start_time: u64, 
+            end_time: u64
+        ) -> Balance;
+
+        fn average_total_supply_between_timestamps(
+            &self, 
+            start_time: u64, 
+            end_time: u64
+        ) -> Balance;
+    }
+
+}
+
+pub mod defi {
+    use near_sdk::{Balance, borsh::{self, BorshDeserialize, BorshSerialize}, AccountId};
+
+    #[derive(BorshDeserialize, BorshSerialize)]
+    pub enum YieldSource{
+        Burrow { address: AccountId },
+        Metapool { address: AccountId }
+    }
+
+    pub trait IYieldSource{
+        fn get_balance(&self) -> Balance;
+        fn transfer(&self, token_id: &AccountId, amount: Balance);
+    }
+}
+
+pub mod prize_distribution{
+    const MAX_TIERS:usize = 16;
+    use common::types::{NumPicks, DrawId, WinningNumber};
+    use near_sdk::Balance;
+    use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+    use near_sdk::serde::{Serialize, Deserialize};
+
+    #[derive(BorshDeserialize, BorshSerialize, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+    #[serde(crate = "near_sdk::serde")]
+    pub struct PrizeDistribution{
+        pub number_of_picks: u64,
+        pub draw_id: u128,
+        pub cardinality: u8,
+        pub bit_range_size: u8,
+        pub tiers: [u32; MAX_TIERS],
+        pub prize: u128,
+        pub start_time: u64,
+        pub end_time: u64,
+        #[serde(skip_serializing)]
+        pub winning_number: WinningNumber,
+    }
+    pub trait PrizeDistributionActor{
+        fn get_prize_distribution(&self, draw_id: u128) -> PrizeDistribution;
+        fn add_prize_distribution(&mut self, draw_id: u128);
+        fn claim(&mut self, draw_id: DrawId, pick: NumPicks) -> Balance;
+    }
+}
+
+pub mod picker{
+    use common::types::{DrawId, NumPicks};
+    use near_sdk::{PromiseOrValue};
+    pub trait Picker{
+        fn get_picks(&self, draw_id: DrawId) -> PromiseOrValue<NumPicks> ;
+    }
+}

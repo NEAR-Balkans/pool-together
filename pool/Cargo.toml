@@ -1,0 +1,21 @@
+[package]
+name = "pool-together"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "4.0.0"
+near-contract-standards = "4.0.0"
+common = {path = "../common" }
+
+[dev-dependencies]
+near-sdk = "4.0.0"
+fungible-token = { git = "https://github.com/near-examples/FT" }
+workspaces = "0.6.0"
+tokio = "^1"
+anyhow = "^1.0"
