@@ -1,0 +1,20 @@
+[package]
+name = "draw"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+uint = { version = "0.9.0", default-features = false }
+near-sdk = "4.0.0"
+near-contract-standards = "4.0.0"
+common = {path = "../common" }
+
+[dev-dependencies]
+near-sdk = "4.0.0"
+near-sdk-sim = "3.1.0"
+rand = "0.8.5"
