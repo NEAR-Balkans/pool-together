@@ -1,3 +1,5 @@
+use near_sdk::Promise;
+
 use crate::*;
 
 // Callback
@@ -5,11 +7,17 @@ use crate::*;
 pub trait ExtSelf {
     fn on_get_draw_and_add_prize_distribution(&mut self, #[callback_result] call_result: Result<Draw, PromiseError>);
     fn on_get_draw_calculate_picks(&mut self, account_id: AccountId, #[callback_result] call_result: Result<Draw, PromiseError>) -> NumPicks;
+    fn on_get_reward_from_defi(&self, #[callback_result] call_result: Result<Vec<TokenAmountsView>, PromiseError>)-> Balance;
 }
 
 #[ext_contract(ext_draw)]
 pub trait ExtDraw {
     fn get_draw(&self, draw_id: DrawId) -> Draw;
+}
+
+#[ext_contract(ext_defi)]
+pub trait ExtDeFi {
+    fn show_reward(&self, account_id: AccountId) -> Vec<TokenAmountsView>;
 }
 
 #[ext_contract(ext_fungible_token)]

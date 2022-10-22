@@ -38,7 +38,9 @@ pub mod gas{
 
     pub const GET_DRAW: Gas = Gas(20_000_000_000_000);
     pub const ONE_YOCTO: Balance = 1;
+    pub const GET_BALANCE_FROM_DEFI: Gas = Gas(20_000_000_000_000);
 
     pub const GAS_FOR_FT_TRANSFER: Gas = Gas(Gas::ONE_TERA.0 * 10);
+    pub const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas(300_000_000_000_000);
     pub const GAS_FOR_AFTER_FT_TRANSFER: Gas = Gas(Gas::ONE_TERA.0 * 20);
 }

@@ -12,6 +12,9 @@ const DRAW_BUFFER_CAPACITY:usize = 3;
 #[cfg(test)]
 mod test_utils;
 
+#[cfg(test)]
+mod utils;
+
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract{
@@ -100,10 +103,10 @@ pub mod tests {
     use crate::interfaces::draw::{Draw};
     use common::{generic_ring_buffer::{GenericRingBuffer, RingBuffer}};
 
-    use near_sdk_sim::{init_simulator, to_yocto};
     use rand::Rng;
     use super::*;
     use crate::test_utils::tests::*;
+    use crate::utils::*;
 
     fn generate_random_seed() -> [u8; 32]{
         return rand::thread_rng().gen::<[u8; 32]>();
@@ -116,90 +119,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_conversion(){
-        let seed = generate_random_seed();
-        let _res256 = as_u256(seed.as_slice().try_into().expect("msg"));
-    }
-
-    #[test]
-    fn test_ring_buffer() {
-        let mut buffer = GenericRingBuffer::<Draw, 3>::new();
-        let mut current_draw = Draw::default();
-        
-        current_draw.winning_random_number = U256::from(1);
-        buffer.add(&current_draw);
-        current_draw.winning_random_number = U256::from(2);
-        buffer.add(&current_draw);
-        current_draw.winning_random_number = U256::from(3);
-        buffer.add(&current_draw);
-        current_draw.winning_random_number = U256::from(4);
-        buffer.add(&current_draw);
-        
-        assert!(buffer.get(0).winning_random_number == U256::from(4));
-        current_draw.winning_random_number = U256::from(5);
-        buffer.add(&current_draw);
-        assert!(buffer.get(1).winning_random_number == U256::from(5));
-    }
-
-    #[test]
-    fn test_if_can_start_draw(){
-        let mut emulator = Emulator::new();
-        
-        assert_eq!(emulator.contract.can_start_draw(), true);
-        assert_eq!(emulator.contract.can_complete_draw(), false);
-
-        emulator.contract.start_draw();
-        emulator.skip_epochs(1, generate_random_seed());
-        assert_eq!(emulator.contract.can_start_draw(), false);
-        assert_eq!(emulator.contract.can_complete_draw(), false);
-
-        emulator.skip_epochs(4, generate_random_seed());
-        assert_eq!(emulator.contract.can_start_draw(), false);
-        assert_eq!(emulator.contract.can_complete_draw(), true);
-
-        emulator.contract.complete_draw();
-        let mut current_draw_id = emulator.contract.temp_draw.draw_id;
-
-        for _ in 0..4{
-            assert_eq!(emulator.contract.can_start_draw(), true);
-            emulator.contract.start_draw();
-            emulator.skip_epochs(5, generate_random_seed());
-            assert_eq!(emulator.contract.can_complete_draw(), true);
-            emulator.contract.complete_draw();
-            assert_eq!(emulator.contract.temp_draw.draw_id, current_draw_id + 1);
-            current_draw_id+=1;
-        }
-    }
-
-
-    #[test]
-    fn sim_test(){
-        let root = init_simulator(None);
-        
-        let near = root.create_user(
-            "near".to_string(),
-            to_yocto("10000")
-        );
-
-        let draw = near.deploy_and_init(
-            include_bytes!("../../res/draw.wasm"),
-            "draw.near".to_string(),
-            "new",
-            &[],
-            to_yocto("10"),
-            near_sdk_sim::DEFAULT_GAS,
-        );
-
-        
-        println!("TEST");
-
-        let defi = near.deploy_and_init(
-            include_bytes!("../../res/defi.wasm"),
-            "defi.near".to_string(),
-            "new",
-            &[],
-            to_yocto("10"),
-            near_sdk_sim::DEFAULT_GAS,
-        );
+    fn sim(){
+        let env = Env::init();
     }
 }

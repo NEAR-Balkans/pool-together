@@ -33,7 +33,9 @@ pub mod pool {
 }
 
 pub mod defi {
-    use near_sdk::{Balance, borsh::{self, BorshDeserialize, BorshSerialize}, AccountId};
+    use near_sdk::{Balance, borsh::{self, BorshDeserialize, BorshSerialize}, AccountId, PromiseOrValue, Promise};
+
+    use crate::Contract;
 
     #[derive(BorshDeserialize, BorshSerialize)]
     pub enum YieldSource{
@@ -42,7 +44,7 @@ pub mod defi {
     }
 
     pub trait IYieldSource{
-        fn get_balance(&self) -> Balance;
+        fn get_reward(&self, account_id: &AccountId) -> Promise;
         fn transfer(&self, token_id: &AccountId, amount: Balance);
     }
 }

@@ -3,15 +3,14 @@ use near_sdk::ext_contract;
 
 #[near_bindgen]
 impl Contract{
-    pub (crate) fn mint_tokens(&mut self, account_id: AccountId, balance: Balance){
-        assert_one_yocto();
+    pub (crate) fn mint_tokens(&mut self, account_id: AccountId, balance: Balance){       
         self.token.internal_register_account(&account_id);
         self.token.internal_deposit(&account_id, balance);
-
+        
         near_contract_standards::fungible_token::events::FtMint {
             owner_id: &account_id,
             amount: &U128(balance),
-            memo: Some("Initial tokens supply is minted"),
+            memo: Some("Tokens supply is minted"),
         }
         .emit();
 
