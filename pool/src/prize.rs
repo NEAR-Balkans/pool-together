@@ -75,7 +75,7 @@ impl Contract{
     }
 
     #[private]
-    pub fn on_get_draw_and_add_prize_distribution(&mut self, #[callback_result] call_result: Result<Draw, PromiseError>) {
+    pub fn on_get_draw_and_add_prize_distribution(&mut self, prize_awards: Balance, #[callback_result] call_result: Result<Draw, PromiseError>) {
         if call_result.is_err(){
             log!("Error when getting draw");
         }
@@ -96,7 +96,8 @@ impl Contract{
             cardinality: cardinality,
             bit_range_size: BIT_RANGE_SIZE,
             tiers: TIERS,
-            prize: max_picks,
+            max_picks: max_picks,
+            prize: prize_awards,
             start_time: draw.completed_at + PRIZE_DISTRIBUTION_TIME_OFFSET,
             end_time: draw.completed_at + 2 * PRIZE_DISTRIBUTION_TIME_OFFSET,
             winning_number: draw.winning_random_number,
@@ -106,6 +107,7 @@ impl Contract{
     }
 }
 
+#[near_bindgen]
 impl PrizeDistributionActor for Contract{
     fn get_prize_distribution(&self, draw_id: DrawId) -> PrizeDistribution {
         for idx in 0..self.prizes.buffer.arr.len(){
@@ -117,43 +119,44 @@ impl PrizeDistributionActor for Contract{
         return PrizeDistribution::default();
     }
 
-    fn add_prize_distribution(&mut self, draw_id: DrawId) {
+    fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: Balance) {
         if self.get_prize_distribution(draw_id) != PrizeDistribution::default(){
             return;
         }
-        let draw_promise = ext_draw::ext(self.draw_contract.clone())
-            .with_static_gas(gas::GET_DRAW)
-            .get_draw(draw_id);
-
+        let draw_promise = ext_draw::get_draw(draw_id, self.draw_contract.clone(), 0, gas::GET_DRAW);
         draw_promise.then(
-            Self::ext(env::current_account_id())
-            .with_static_gas(gas::GET_DRAW)
-            .on_get_draw_and_add_prize_distribution()
+            this_contract::on_get_draw_and_add_prize_distribution(prize_awards, env::current_account_id(), 0, gas::GET_DRAW)
         );
     }
 
-    fn claim(&mut self, draw_id: DrawId, pick: NumPicks) -> Balance{
-        let prize_distribution = self.get_prize_distribution(draw_id);
+    #[payable]
+    fn claim(&mut self, draw_id: U128, pick: U128) -> u128{
+        assert_one_yocto();
+        
+        let prize_distribution = self.get_prize_distribution(draw_id.0);
         let caller = env::signer_account_id();
-        let picks_for_draw = self.acc_picks.get_picks_for_draw(&caller, &draw_id);
+        let picks_for_draw = self.acc_picks.get_picks_for_draw(&caller, &draw_id.0);
         
         if picks_for_draw == NumPicks::default(){
             panic!("There are no generated picks for this draw for client");
         }
 
-        if pick >= picks_for_draw {
+        if pick.0 >= picks_for_draw {
             panic!("Invalid pick");
         }
 
-        let user_winning_number = utils::utils::get_user_winning_number(&caller, pick);
+        let user_winning_number = utils::utils::get_user_winning_number(&caller, pick.0);
         let masks = self.create_masks(prize_distribution.bit_range_size, prize_distribution.cardinality);
         // get tier match
         let tier_match = self.get_tier_match(&masks, &user_winning_number, &prize_distribution.winning_number);
         // get prize tier fraction
         let prize_tier_fraction = self.prize_tier_fraction(tier_match, prize_distribution.bit_range_size, &prize_distribution.tiers);
+        let prize_to_take = u128::from(prize_tier_fraction) * prize_distribution.prize / TIERS_NOMINAL;
 
-        //TODO add send method
-        return u128::from(prize_tier_fraction) * prize_distribution.prize / TIERS_NOMINAL;
+        log!("Prize to claim is {} {}", prize_to_take, self.deposited_token_id);
+        self.get_yield_source().claim(&caller, &self.deposited_token_id, prize_to_take);
+        
+        return prize_to_take;
     }
 }
 

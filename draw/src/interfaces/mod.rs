@@ -24,4 +24,8 @@ pub mod draw {
     pub trait DrawBuffer{
         fn get_draw(&self, draw_id: DrawId) -> Draw;
     }
+
+    pub trait DrawRegister{
+        fn get_draws(&self, from_index: usize, limit: usize) -> Vec<Draw>;
+    }
 }

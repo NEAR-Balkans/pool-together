@@ -46,6 +46,7 @@ pub mod defi {
     pub trait IYieldSource{
         fn get_reward(&self, account_id: &AccountId) -> Promise;
         fn transfer(&self, token_id: &AccountId, amount: Balance);
+        fn claim(&self, account_id: &AccountId, token_id:&AccountId, amount: Balance);
     }
 }
 
@@ -54,6 +55,7 @@ pub mod prize_distribution{
     use common::types::{NumPicks, DrawId, WinningNumber};
     use near_sdk::Balance;
     use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+    use near_sdk::json_types::U128;
     use near_sdk::serde::{Serialize, Deserialize};
 
     #[derive(BorshDeserialize, BorshSerialize, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -65,6 +67,7 @@ pub mod prize_distribution{
         pub bit_range_size: u8,
         pub tiers: [u32; MAX_TIERS],
         pub prize: u128,
+        pub max_picks: u128,
         pub start_time: u64,
         pub end_time: u64,
         #[serde(skip_serializing)]
@@ -72,8 +75,8 @@ pub mod prize_distribution{
     }
     pub trait PrizeDistributionActor{
         fn get_prize_distribution(&self, draw_id: u128) -> PrizeDistribution;
-        fn add_prize_distribution(&mut self, draw_id: u128);
-        fn claim(&mut self, draw_id: DrawId, pick: NumPicks) -> Balance;
+        fn add_prize_distribution(&mut self, draw_id: u128, prize_awards: Balance);
+        fn claim(&mut self, draw_id: U128, pick: U128) -> u128;
     }
 }
 

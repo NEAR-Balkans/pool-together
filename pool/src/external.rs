@@ -5,19 +5,21 @@ use crate::*;
 // Callback
 #[ext_contract(this_contract)]
 pub trait ExtSelf {
-    fn on_get_draw_and_add_prize_distribution(&mut self, #[callback_result] call_result: Result<Draw, PromiseError>);
+    fn on_get_draw_and_add_prize_distribution(&mut self, prize_awards: Balance, #[callback_result] call_result: Result<Draw, PromiseError>);
     fn on_get_draw_calculate_picks(&mut self, account_id: AccountId, #[callback_result] call_result: Result<Draw, PromiseError>) -> NumPicks;
     fn on_get_reward_from_defi(&self, #[callback_result] call_result: Result<Vec<TokenAmountsView>, PromiseError>)-> Balance;
+    fn on_after_rewards_claim_from_defi(&mut self, account_id: AccountId, amount: Balance, #[callback_result] result: Result<(), PromiseError>);
 }
 
 #[ext_contract(ext_draw)]
 pub trait ExtDraw {
-    fn get_draw(&self, draw_id: DrawId) -> Draw;
+    fn get_draw(&self, id: DrawId) -> Draw;
 }
 
 #[ext_contract(ext_defi)]
 pub trait ExtDeFi {
     fn show_reward(&self, account_id: AccountId) -> Vec<TokenAmountsView>;
+    fn execute(&self, actions: Vec<Action>);
 }
 
 #[ext_contract(ext_fungible_token)]

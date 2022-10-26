@@ -67,7 +67,6 @@ macro_rules! assert_eq_in_near {
 pub mod tests {
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::{testing_env, VMContext};
-    use near_sdk_sim::near_crypto::PublicKey;
 
     use crate::*;
 

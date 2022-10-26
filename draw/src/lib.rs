@@ -2,7 +2,7 @@ use common::generic_ring_buffer::{GenericRingBuffer, RingBuffer};
 use common::types::{DrawId, U256};
 use near_sdk::{env, near_bindgen, EpochHeight, PanicOnDefault};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use interfaces::draw::{DrawCreator, Draw};
+use interfaces::draw::{DrawCreator, Draw, DrawBuffer, DrawRegister};
 
 mod interfaces;
 
@@ -52,7 +52,24 @@ impl Contract{
         }
     }
 
-    pub fn get_draw(&self, id: DrawId) -> Draw{
+    
+}
+
+#[near_bindgen]
+impl DrawRegister for Contract{
+    fn get_draws(&self, from_index: usize, limit: usize) -> Vec<Draw>{
+        return self.draw_buffer.arr
+            .iter()
+            .cloned()
+            .skip(from_index)
+            .take(limit)
+            .collect::<Vec<Draw>>();
+    }
+}
+
+#[near_bindgen]
+impl DrawBuffer for Contract{
+    fn get_draw(&self, id: DrawId) -> Draw{
         return self
             .draw_buffer
             .arr
@@ -61,6 +78,7 @@ impl Contract{
     }
 }
 
+#[near_bindgen]
 impl DrawCreator for Contract{
     fn can_start_draw(&self) -> bool{
         return !self.is_started;
@@ -100,7 +118,6 @@ pub mod tests {
     use crate::interfaces::draw::{Draw};
     use common::{generic_ring_buffer::{GenericRingBuffer, RingBuffer}};
 
-    use near_sdk_sim::{init_simulator, to_yocto};
     use rand::Rng;
     use super::*;
     use crate::test_utils::tests::*;
@@ -169,37 +186,5 @@ pub mod tests {
             assert_eq!(emulator.contract.temp_draw.draw_id, current_draw_id + 1);
             current_draw_id+=1;
         }
-    }
-
-
-    #[test]
-    fn sim_test(){
-        let root = init_simulator(None);
-        
-        let near = root.create_user(
-            "near".to_string(),
-            to_yocto("10000")
-        );
-
-        let draw = near.deploy_and_init(
-            include_bytes!("../../res/draw.wasm"),
-            "draw.near".to_string(),
-            "new",
-            &[],
-            to_yocto("10"),
-            near_sdk_sim::DEFAULT_GAS,
-        );
-
-        
-        println!("TEST");
-
-        let defi = near.deploy_and_init(
-            include_bytes!("../../res/defi.wasm"),
-            "defi.near".to_string(),
-            "new",
-            &[],
-            to_yocto("10"),
-            near_sdk_sim::DEFAULT_GAS,
-        );
     }
 }

@@ -339,10 +339,22 @@ async fn test_sending_correct_token_check_defi() -> anyhow::Result<()>{
     storage_deposit(pool.as_account(), &ft.id()).await?;
     storage_deposit(defi.as_account(), ft.id()).await?;
 
+    /// Test1 users has 3 FT tokens
     ft_transfer(ft.as_account(), test1.id(), to_token_amount(3), ft.id()).await?;
     let test1_ft_balance = ft_balance_of(&test1, ft.id()).await?;
     assert_eq!(test1_ft_balance, to_token_amount(3));
+
+
+    /// Test1 user transfer 2 FT tokens to pool contract
     ft_transfer_call(&test1, pool.id(), to_token_amount(2), ft.id(), "").await?;
+    let test1_ft_balance = ft_balance_of(&test1, ft.id()).await?;
+    assert_eq!(test1_ft_balance, to_token_amount(1));
+    
+    // Pool contract should not have any balance in the ft contract
+    let pool_balance_of_ft = ft_balance_of(&pool.as_account(), &ft.id()).await?;
+    assert_eq!(0, pool_balance_of_ft);
+    let defi_balance_of_ft = ft_balance_of(&defi.as_account(), &ft.id()).await?;
+    assert_eq!(defi_balance_of_ft, to_token_amount(2));
 
     let test1_tickets = ft_balance_of(&test1, pool.id()).await?;
     assert_eq!(test1_tickets, to_token_amount(2));

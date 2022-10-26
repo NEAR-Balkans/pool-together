@@ -9,12 +9,12 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-near-sdk = "4.0.0"
-near-contract-standards = "4.0.0"
+near-sdk = "=4.0.0-pre.9"
+near-contract-standards = "=4.0.0-pre.9"
 common = {path = "../common" }
 
 [dev-dependencies]
-near-sdk = "4.0.0"
+near-sdk = "=4.0.0-pre.9"
 workspaces = "0.6.0"
 tokio = "^1"
 anyhow = "^1.0"

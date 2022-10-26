@@ -9,5 +9,5 @@ crate-type = ["cdylib", "rlib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-near-sdk = "4.0.0"
-near-contract-standards = "4.0.0"
+near-sdk = "=4.0.0-pre.9"
+near-contract-standards = "=4.0.0-pre.9"

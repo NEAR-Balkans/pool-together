@@ -5,6 +5,7 @@ use near_sdk::json_types::{U128};
 use near_sdk::serde::{Serialize, Deserialize};
 use near_sdk::{self, near_bindgen, ext_contract, log, env, AccountId, Balance, PromiseResult, Gas, Promise};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+use std::vec::Vec;
 
 pub const ON_FUNDING_GAS: Gas = near_sdk::Gas(10_000_000_000_000);
 
@@ -111,38 +112,25 @@ impl Contract{
     pub fn account_farm_claim_all(&self){}
 
     #[payable]
-    pub fn execute(&mut self, _actions: Vec<Action>){
+    pub fn execute(&mut self, actions: Vec<Action>){
         let caller = env::predecessor_account_id();
         assert!(env::attached_deposit() >= 1, "1 yocto for ft transfer is needed");
 
         let acc_amounts = self.accounts.get(&caller).unwrap_or_default();
-        for amount in acc_amounts.token_id_balance.to_vec().iter(){
-            let _amount_to_send = if acc_amounts.tally_below_zero {
-                (amount.1.0 + amount.1.1) / 10
-            } else {
-                (amount.1.0 - amount.1.1) / 10
-            };
-            /*
-            if amount_to_send > 0{
-                ext_contract::ft_transfer_call(
-                    caller.clone(),
-                    amount_to_send.to_string(),
-                    Option::None,
-                    "".to_string(),
-                    &amount.0,
-                    1,
-                    GAS_FOR_FT_TRANSFER,
-                ).then(ext_self::on_after_ft_transfer(
-                    caller.clone(),
-                    amount.0.clone(),
-                    amount_to_send.into(),
-                    &env::current_account_id(),
-                    0,
-                    ON_FUNDING_GAS,
-                ));
-            }    
-             */        
-        }
+        
+        for action in actions{
+            match action{
+                Action::Withdraw(asset_amount) => {
+                    let token_amount = acc_amounts.token_id_balance.get(&asset_amount.token_id).unwrap_or_default();
+
+                    if asset_amount.amount.unwrap().0 > token_amount.1{
+                        panic!("Trying to send amount that is not available");
+                    }
+
+                    ext_fungible_token::ft_transfer(caller.clone(), asset_amount.amount.unwrap().0.to_string(), None, asset_amount.token_id, 1, GAS_FOR_FT_TRANSFER);
+                }
+            }   
+        }       
     }
  
  
@@ -254,6 +242,7 @@ mod tests {
 
     #[test]
     fn it_works() {
+        let x = vec![1,2,3];
         let mut contract = Contract::default();
         let res = contract.ft_on_transfer(AccountId::new_unchecked("test.near".to_string()), U128(10), "".to_string());
         let shares = contract.show_reward(AccountId::new_unchecked("test.near".to_string())).first().unwrap().shares;
