@@ -81,14 +81,19 @@ impl DrawBuffer for Contract{
 
 #[near_bindgen]
 impl DrawCreator for Contract{
+    /// Returns true/false whether a draw has started or not
+    /// if true then a draw is not started, otherwise a draw is started
     fn can_start_draw(&self) -> bool{
         return !self.is_started;
     }
 
+    /// Returns true/false whether a draw can be completed
+    /// if false then a draw has not started yet or the draw duration has not passed
     fn can_complete_draw(&self) -> bool {
         return self.is_started && env::epoch_height() >= self.last_epoch_started + DRAW_DURATION_IN_EPOCHS;
     }
 
+    /// Starts a draw, internally checks if draw can be started
     fn start_draw(&mut self) {
         if !self.can_start_draw(){
             return;
@@ -100,6 +105,8 @@ impl DrawCreator for Contract{
         self.temp_draw.draw_id = self.temp_draw.draw_id + 1;
     }
 
+    /// Completes a draw, internally checks if draw can be completed
+    /// The completed draw is added to the ring buffer
     fn complete_draw(&mut self) {
         if !self.can_complete_draw() {
             return;
