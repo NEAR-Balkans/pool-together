@@ -210,7 +210,7 @@ impl FungibleTokenReceiver for Contract{
 mod tests {
     use near_sdk::{collections::Vector, AccountId, Balance, env};
     use crate::{twab::AccountsDepositHistory, twab::AccountBalance, interfaces::{pool::ITwab, prize_distribution::PrizeDistribution}};
-    use common::{generic_ring_buffer::GenericRingBuffer, types::U256};
+    use common::{generic_ring_buffer::GenericRingBuffer, types::{U256, DrawId}};
 
     fn mint(tickets: &mut AccountsDepositHistory, acc_id: &AccountId, amount: Balance, time: u64){
         tickets.increase_balance(acc_id, amount, time);
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_generic_buffer(){
-        let mut buffer = GenericRingBuffer::<PrizeDistribution, 5>::new();
+        let mut buffer = GenericRingBuffer::<PrizeDistribution, DrawId, 5>::new();
         buffer.arr[0] =  PrizeDistribution::default();
         buffer.arr[0].tiers[1] = 20;
         println!("xx");
