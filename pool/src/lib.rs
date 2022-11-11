@@ -5,7 +5,7 @@ use near_contract_standards::fungible_token::metadata::{
 use near_contract_standards::fungible_token::FungibleToken;
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::LazyOption;
+use near_sdk::collections::{LazyOption, LookupMap};
 use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, log, near_bindgen, AccountId, Balance, PanicOnDefault, PromiseOrValue, assert_one_yocto, ext_contract, PromiseError, BorshStorageKey};
@@ -40,6 +40,7 @@ const TOTAL_SUPPLY: u128 = 1_000;
 pub(crate) enum StorageKeys{
     Token,
     TokenMetadata,
+    UserNearDeposit,
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -72,6 +73,7 @@ pub struct Contract {
     draw_contract: AccountId,
     acc_picks: AccountsPicks,
     yield_source: YieldSource,
+    user_near_deposit: LookupMap<AccountId, Balance>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -115,6 +117,10 @@ impl IPool for Contract{
             _ => panic!("No default option"),
         };
     }
+
+    fn assert_sender_has_payed_for_ft_transfer(&self, account: &AccountId) {
+        assert!(self.user_near_deposit.get(account).unwrap_or_default() > 0);
+    }
 }
 
 #[near_bindgen]
@@ -146,7 +152,7 @@ impl Contract {
     /// The contract should not have initial supply at the beginning
     /// With every deposit of tokens to the contract, tokens will be minted
     #[init]
-    fn new(
+    pub fn new(
         owner_id: AccountId,
         deposited_token_id: AccountId,
         metadata: FungibleTokenMetadata,
@@ -164,6 +170,7 @@ impl Contract {
             draw_contract: draw_contract,
             acc_picks: AccountsPicks::default(),
             yield_source: YieldSource::Burrow { address: burrow_address },
+            user_near_deposit: LookupMap::new(StorageKeys::UserNearDeposit),
         };
 
         this.token.internal_register_account(&owner_id);
@@ -180,6 +187,18 @@ impl Contract {
 
     pub fn get_asset(&self) -> AccountId {
         self.deposited_token_id.clone()
+    }
+
+    #[payable]
+    pub fn accept_deposit_for_future_fungible_token_transfers(&mut self) {
+        let mut user_balance = self.user_near_deposit.get(&env::predecessor_account_id()).unwrap_or_default();
+        user_balance += env::attached_deposit();
+        self.user_near_deposit.insert(&env::predecessor_account_id(), &user_balance);
+    }
+
+    fn decrement_user_near_deposit(&mut self, account: &AccountId){
+        let user_balance = self.user_near_deposit.get(account).unwrap_or_default();
+        self.user_near_deposit.insert(account, &(user_balance-1));
     }
 }
 
@@ -202,6 +221,9 @@ impl FungibleTokenReceiver for Contract{
         msg: String,
     ) -> PromiseOrValue<U128> {
         self.assert_correct_token_is_send_to_contract(&env::predecessor_account_id());
+        self.assert_sender_has_payed_for_ft_transfer(&sender_id);
+        self.decrement_user_near_deposit(&sender_id);
+
         self
             .get_yield_source()
             .transfer(&env::predecessor_account_id(), amount.0);
