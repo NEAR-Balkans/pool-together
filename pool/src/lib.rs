@@ -8,7 +8,7 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::LazyOption;
 use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{env, log, near_bindgen, AccountId, Balance, PanicOnDefault, PromiseOrValue, assert_one_yocto, ext_contract, PromiseError};
+use near_sdk::{env, log, near_bindgen, AccountId, Balance, PanicOnDefault, PromiseOrValue, assert_one_yocto, ext_contract, PromiseError, BorshStorageKey};
 use interfaces::pool::{IPool, ITwab};
 use interfaces::defi::IYieldSource;
 use picks::AccountsPicks;
@@ -35,6 +35,12 @@ mod burrow;
 const PROTOCOL_FT_SYMBOL: &str = "PTTICK";
 const PROTOCOL_FT_NAME: &str = "Pool Together Ticket";
 const TOTAL_SUPPLY: u128 = 1_000;
+
+#[derive(BorshStorageKey, BorshSerialize)]
+pub(crate) enum StorageKeys{
+    Token,
+    TokenMetadata,
+}
 
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(crate = "near_sdk::serde")]
@@ -150,8 +156,8 @@ impl Contract {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
         let mut this = Self {
-            token: FungibleToken::new(b"a".to_vec()),
-            metadata: LazyOption::new(b"m".to_vec(), Some(&metadata)),
+            token: FungibleToken::new(StorageKeys::Token),
+            metadata: LazyOption::new(StorageKeys::TokenMetadata, Some(&metadata)),
             deposited_token_id: deposited_token_id,
             tickets: AccountsDepositHistory::default(),
             prizes: PrizeBuffer::new(),
