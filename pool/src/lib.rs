@@ -36,13 +36,6 @@ const PROTOCOL_FT_SYMBOL: &str = "PTTICK";
 const PROTOCOL_FT_NAME: &str = "Pool Together Ticket";
 const TOTAL_SUPPLY: u128 = 1_000;
 
-#[derive(BorshStorageKey, BorshSerialize)]
-pub(crate) enum StorageKeys{
-    Token,
-    TokenMetadata,
-    UserNearDeposit,
-}
-
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct AssetAmount {
@@ -162,15 +155,15 @@ impl Contract {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
         let mut this = Self {
-            token: FungibleToken::new(StorageKeys::Token),
-            metadata: LazyOption::new(StorageKeys::TokenMetadata, Some(&metadata)),
+            token: FungibleToken::new(utils::storage_keys::StorageKeys::Token),
+            metadata: LazyOption::new(utils::storage_keys::StorageKeys::TokenMetadata, Some(&metadata)),
             deposited_token_id: deposited_token_id,
             tickets: AccountsDepositHistory::default(),
             prizes: PrizeBuffer::new(),
             draw_contract: draw_contract,
             acc_picks: AccountsPicks::default(),
             yield_source: YieldSource::Burrow { address: burrow_address },
-            user_near_deposit: LookupMap::new(StorageKeys::UserNearDeposit),
+            user_near_deposit: LookupMap::new(utils::storage_keys::StorageKeys::UserNearDeposit),
         };
 
         this.token.internal_register_account(&owner_id);

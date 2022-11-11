@@ -10,6 +10,9 @@ pub mod storage_keys{
         TotalSupplyAccountBalance,
         AccountPicks,
         AccountDrawPicks {account_hash: CryptoHash},
+        Token,
+        TokenMetadata,
+        UserNearDeposit,
     }
 }
 
