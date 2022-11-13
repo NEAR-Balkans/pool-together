@@ -5,6 +5,7 @@ pub mod pool {
     use super::defi::IYieldSource;
     pub trait IPool{
         fn assert_correct_token_is_send_to_contract(&self, token: &AccountId);
+        fn assert_sender_has_deposited_enough(&self, account: &AccountId, deposit:Balance);
         fn get_lottery_asset(&self) -> AccountId;
         fn send_to_dex(&self);
         fn get_yield_source(&self) -> Box<dyn IYieldSource>;

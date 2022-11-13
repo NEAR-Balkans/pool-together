@@ -1,7 +1,7 @@
 use crate::*;
 use near_sdk::{borsh::{self, BorshDeserialize, BorshSerialize}};
 use crate::interfaces::prize_distribution::{PrizeDistribution, PrizeDistributionActor};
-use common::{generic_ring_buffer::{GenericRingBuffer, RingBuffer}, types::{WinningNumber, U256}};
+use common::{generic_ring_buffer::{GenericRingBuffer, RingBuffer, Identifier}, types::{WinningNumber, U256}};
 
 const MAX_PRIZES_CAPACITY: usize = 32;
 const MIN_PICK_COST: Balance = 1;
@@ -12,12 +12,18 @@ const PRIZE_DISTRIBUTION_TIME_OFFSET: u64 = 1000 * 3600 * 24 * 7;
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct PrizeBuffer{
-    pub buffer: GenericRingBuffer<PrizeDistribution, MAX_PRIZES_CAPACITY>,
+    pub buffer: GenericRingBuffer<PrizeDistribution, DrawId, MAX_PRIZES_CAPACITY>,
+}
+
+impl Identifier<DrawId> for PrizeDistribution{
+    fn id(&self) -> DrawId {
+        self.draw_id
+    }
 }
 
 impl PrizeBuffer{
     pub fn new() -> Self{
-        return Self { buffer: GenericRingBuffer::<PrizeDistribution, MAX_PRIZES_CAPACITY>::new() };
+        return Self { buffer: GenericRingBuffer::<PrizeDistribution, DrawId, MAX_PRIZES_CAPACITY>::new() };
     }
 }
 

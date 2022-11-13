@@ -5,10 +5,10 @@ use near_contract_standards::fungible_token::metadata::{
 use near_contract_standards::fungible_token::FungibleToken;
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::LazyOption;
+use near_sdk::collections::{LazyOption, LookupMap};
 use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise, PanicOnDefault, PromiseOrValue, assert_one_yocto, ext_contract, PromiseError};
+use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise, PanicOnDefault, PromiseOrValue, assert_one_yocto, ext_contract, PromiseError, BorshStorageKey};
 use interfaces::pool::{IPool, ITwab};
 use interfaces::defi::IYieldSource;
 use picks::AccountsPicks;
@@ -63,6 +63,7 @@ pub struct Contract {
     draw_contract: AccountId,
     acc_picks: AccountsPicks,
     yield_source: YieldSource,
+    user_near_deposit: LookupMap<AccountId, Balance>,
     owner_id: AccountId,
 }
 
@@ -126,6 +127,10 @@ impl IPool for Contract{
             _ => panic!("No default option"),
         };
     }
+
+    fn assert_sender_has_deposited_enough(&self, account: &AccountId, deposit: Balance) {
+        assert!(self.user_near_deposit.get(account).unwrap_or_default() >= deposit);
+    }
 }
 
 #[near_bindgen]
@@ -157,7 +162,7 @@ impl Contract {
     /// The contract should not have initial supply at the beginning
     /// With every deposit of tokens to the contract, tokens will be minted
     #[init]
-    fn new(
+    pub fn new(
         owner_id: AccountId,
         deposited_token_id: AccountId,
         metadata: FungibleTokenMetadata,
@@ -167,14 +172,15 @@ impl Contract {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
         let mut this = Self {
-            token: FungibleToken::new(b"a".to_vec()),
-            metadata: LazyOption::new(b"m".to_vec(), Some(&metadata)),
+            token: FungibleToken::new(utils::storage_keys::StorageKeys::Token),
+            metadata: LazyOption::new(utils::storage_keys::StorageKeys::TokenMetadata, Some(&metadata)),
             deposited_token_id: deposited_token_id,
             tickets: AccountsDepositHistory::default(),
             prizes: PrizeBuffer::new(),
             draw_contract: draw_contract,
             acc_picks: AccountsPicks::default(),
             yield_source: YieldSource::Burrow { address: burrow_address },
+            user_near_deposit: LookupMap::new(utils::storage_keys::StorageKeys::UserNearDeposit),
             owner_id: owner_id.clone(),
         };
 
@@ -192,6 +198,24 @@ impl Contract {
 
     pub fn get_asset(&self) -> AccountId {
         self.deposited_token_id.clone()
+    }
+
+    #[payable]
+    pub fn accept_deposit_for_future_fungible_token_transfers(&mut self) {
+        let mut user_balance = self.user_near_deposit.get(&env::predecessor_account_id()).unwrap_or_default();
+        user_balance += env::attached_deposit();
+        self.user_near_deposit.insert(&env::predecessor_account_id(), &user_balance);
+    }
+
+    fn decrement_user_near_deposit(&mut self, account: &AccountId, amount: Option<Balance>){
+        let mut user_balance = self.user_near_deposit.get(account).unwrap_or_default();
+        user_balance = if amount.is_none(){
+            user_balance - 1
+        }else{
+            user_balance - amount.unwrap()
+        };
+        
+        self.user_near_deposit.insert(account, &(user_balance));
     }
 
     pub fn get_reward(&self) -> Promise{
@@ -223,8 +247,10 @@ impl FungibleTokenReceiver for Contract{
     ) -> PromiseOrValue<U128> {
         self.assert_correct_token_is_send_to_contract(&env::predecessor_account_id());
         let (deposit, gas) = self.get_yield_source().get_action_required_deposit_and_gas(YieldSourceAction::Transfer);
-        /// TODO check with collection of attached deposit before
+        self.assert_sender_has_deposited_enough(&sender_id, deposit);
         assert!(env::prepaid_gas() >= gas);
+
+        self.decrement_user_near_deposit(&sender_id, Some(deposit));
         
         self
             .get_yield_source()
@@ -240,7 +266,7 @@ impl FungibleTokenReceiver for Contract{
 mod tests {
     use near_sdk::{collections::Vector, AccountId, Balance, env};
     use crate::{twab::AccountsDepositHistory, twab::AccountBalance, interfaces::{pool::ITwab, prize_distribution::PrizeDistribution}};
-    use common::{generic_ring_buffer::GenericRingBuffer, types::U256};
+    use common::{generic_ring_buffer::GenericRingBuffer, types::{U256, DrawId}};
 
     fn mint(tickets: &mut AccountsDepositHistory, acc_id: &AccountId, amount: Balance, time: u64){
         tickets.increase_balance(acc_id, amount, time);
@@ -279,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_generic_buffer(){
-        let mut buffer = GenericRingBuffer::<PrizeDistribution, 5>::new();
+        let mut buffer = GenericRingBuffer::<PrizeDistribution, DrawId, 5>::new();
         buffer.arr[0] =  PrizeDistribution::default();
         buffer.arr[0].tiers[1] = 20;
         println!("xx");
