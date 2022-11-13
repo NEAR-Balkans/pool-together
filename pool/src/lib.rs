@@ -8,14 +8,14 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::LazyOption;
 use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{env, log, near_bindgen, AccountId, Balance, PanicOnDefault, PromiseOrValue, assert_one_yocto, ext_contract, PromiseError};
+use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise, PanicOnDefault, PromiseOrValue, assert_one_yocto, ext_contract, PromiseError};
 use interfaces::pool::{IPool, ITwab};
 use interfaces::defi::IYieldSource;
 use picks::AccountsPicks;
 use twab::AccountsDepositHistory;
 use prize::PrizeBuffer;
 use common::types::{DrawId, NumPicks, WinningNumber};
-use interfaces::defi::YieldSource;
+use interfaces::defi::{YieldSource, YieldSourceAction};
 use utils::gas;
 
 const ZERO_ADDRESS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -43,9 +43,6 @@ pub struct AssetAmount {
     /// The amount of tokens intended to be used for the action
     /// If 'None', then the maximum will be tried
     pub amount: Option<U128>,
-    /// The maximum amount of tokens that can be used for the action
-    /// If 'None', then the maximum 'available' amount will be used
-    pub max_amount: Option<U128>,
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -66,6 +63,7 @@ pub struct Contract {
     draw_contract: AccountId,
     acc_picks: AccountsPicks,
     yield_source: YieldSource,
+    owner_id: AccountId,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -74,6 +72,25 @@ pub struct TokenAmountsView{
     token: near_sdk::AccountId,
     shares: U128,
     rewards: U128
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct AssetView {
+    pub token_id: AccountId,
+    pub balance: Balance
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct AccountDetailedView {
+    pub account_id: AccountId,
+    /// A list of assets that are supplied by the account (but not used a collateral).
+    pub supplied: Vec<AssetView>,
+    /// A list of assets that are used as a collateral.
+    pub collateral: Vec<AssetView>,
+    /// A list of assets that are borrowed.
+    pub borrowed: Vec<AssetView>
 }
 
 const DATA_IMAGE_SVG_NEAR_ICON: &str = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 288 288'%3E%3Cg id='l' data-name='l'%3E%3Cpath d='M187.58,79.81l-30.1,44.69a3.2,3.2,0,0,0,4.75,4.2L191.86,103a1.2,1.2,0,0,1,2,.91v80.46a1.2,1.2,0,0,1-2.12.77L102.18,77.93A15.35,15.35,0,0,0,90.47,72.5H87.34A15.34,15.34,0,0,0,72,87.84V201.16A15.34,15.34,0,0,0,87.34,216.5h0a15.35,15.35,0,0,0,13.08-7.31l30.1-44.69a3.2,3.2,0,0,0-4.75-4.2L96.14,186a1.2,1.2,0,0,1-2-.91V104.61a1.2,1.2,0,0,1,2.12-.77l89.55,107.23a15.35,15.35,0,0,0,11.71,5.43h3.13A15.34,15.34,0,0,0,216,201.16V87.84A15.34,15.34,0,0,0,200.66,72.5h0A15.35,15.35,0,0,0,187.58,79.81Z'/%3E%3C/g%3E%3C/svg%3E";
@@ -158,6 +175,7 @@ impl Contract {
             draw_contract: draw_contract,
             acc_picks: AccountsPicks::default(),
             yield_source: YieldSource::Burrow { address: burrow_address },
+            owner_id: owner_id.clone(),
         };
 
         this.token.internal_register_account(&owner_id);
@@ -174,6 +192,14 @@ impl Contract {
 
     pub fn get_asset(&self) -> AccountId {
         self.deposited_token_id.clone()
+    }
+
+    pub fn get_reward(&self) -> Promise{
+        let ys = self.get_yield_source();
+        let (_, gas) = ys.get_action_required_deposit_and_gas(YieldSourceAction::GetReward);
+        assert!(env::prepaid_gas() >= gas);
+
+        return ys.get_reward();
     }
 }
 
@@ -196,6 +222,10 @@ impl FungibleTokenReceiver for Contract{
         msg: String,
     ) -> PromiseOrValue<U128> {
         self.assert_correct_token_is_send_to_contract(&env::predecessor_account_id());
+        let (deposit, gas) = self.get_yield_source().get_action_required_deposit_and_gas(YieldSourceAction::Transfer);
+        /// TODO check with collection of attached deposit before
+        assert!(env::prepaid_gas() >= gas);
+        
         self
             .get_yield_source()
             .transfer(&env::predecessor_account_id(), amount.0);

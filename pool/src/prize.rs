@@ -120,6 +120,7 @@ impl PrizeDistributionActor for Contract{
     }
 
     fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: Balance) {
+        self.assert_owner();
         if self.get_prize_distribution(draw_id) != PrizeDistribution::default(){
             return;
         }
@@ -131,8 +132,6 @@ impl PrizeDistributionActor for Contract{
 
     #[payable]
     fn claim(&mut self, draw_id: U128, pick: U128) -> u128{
-        assert_one_yocto();
-        
         let prize_distribution = self.get_prize_distribution(draw_id.0);
         let caller = env::signer_account_id();
         let picks_for_draw = self.acc_picks.get_picks_for_draw(&caller, &draw_id.0);
@@ -144,6 +143,10 @@ impl PrizeDistributionActor for Contract{
         if pick.0 >= picks_for_draw {
             panic!("Invalid pick");
         }
+
+        let (deposit, gas) = self.get_yield_source().get_action_required_deposit_and_gas(YieldSourceAction::Claim);
+        assert!(env::attached_deposit() >= deposit);
+        assert!(env::prepaid_gas() >= gas);
 
         let user_winning_number = utils::utils::get_user_winning_number(&caller, pick.0);
         let masks = self.create_masks(prize_distribution.bit_range_size, prize_distribution.cardinality);

@@ -1,5 +1,5 @@
-use crate::{*, utils::gas::{GAS_FOR_AFTER_FT_TRANSFER, GAS_FOR_FT_TRANSFER}};
-use near_sdk::{AccountId, Balance, json_types::{U128}, PromiseError, Promise};
+use crate::{*, utils::gas::{GAS_FOR_AFTER_FT_TRANSFER, GAS_FOR_FT_TRANSFER, GAS_FOR_TRANSFER_TO_DEFI}, interfaces::defi::YieldSourceAction};
+use near_sdk::{AccountId, Balance, Gas, json_types::{U128}, PromiseError, Promise};
 use crate::interfaces::defi::IYieldSource;
 use near_sdk::serde::{Deserialize};
 use crate::utils::gas;
@@ -36,8 +36,26 @@ pub (crate) struct BurrowYieldSource{
 #[near_bindgen]
 impl Contract{
     #[private]
-    pub fn on_get_reward_from_defi(&self, #[callback_result] call_result: Result<Vec<TokenAmountsView>, PromiseError>)-> Balance{
-        return 10;
+    pub fn on_get_reward_from_defi(&self, #[callback_result] call_result: Result<Option<AccountDetailedView>, PromiseError>)-> Balance{
+        if call_result.is_err(){
+            log!("Error when getting account");
+            return 0;
+        }
+
+        let opt_account_detailed_view = call_result.unwrap();
+        if opt_account_detailed_view.is_none(){
+            log!("Account is not present in burrow");
+            return 0;
+        }
+
+        let binding = opt_account_detailed_view.unwrap();
+        let supplied_asset = binding.supplied.iter().find(|el| el.token_id == self.deposited_token_id);
+
+        if supplied_asset.is_none(){
+            return 0;
+        }
+
+        return supplied_asset.unwrap().balance.0 - self.tickets.total_supply.balance;
     }
 
     #[private]
@@ -53,9 +71,9 @@ impl Contract{
 }
 
 impl IYieldSource for BurrowYieldSource{
-    fn get_reward(&self, account_id: &AccountId) -> Promise {
+    fn get_reward(&self) -> Promise {
 
-        ext_defi::show_reward(account_id.clone(), self.address.clone(), 0, gas::GAS_FOR_FT_TRANSFER)
+        ext_defi::get_account(env::current_account_id(), self.address.clone(), 0, Gas(0))
          .then(crate::this_contract::on_get_reward_from_defi(env::current_account_id(), 0, gas::GET_BALANCE_FROM_DEFI))
     }
 
@@ -68,13 +86,23 @@ impl IYieldSource for BurrowYieldSource{
 
 
     fn claim(&self, account_id: &AccountId, token_id: &AccountId, amount: Balance) {
-        let asset_amount = AssetAmount{ token_id: token_id.clone(), amount: Some(U128(amount)), max_amount: None};
+        let asset_amount = AssetAmount{ token_id: token_id.clone(), amount: Some(U128(amount))};
         let action = Action::Withdraw(
             asset_amount
         );
 
-        ext_defi::execute(vec![action], self.address.clone(), 1, gas::MAX_GAS)
+        ext_defi::execute(vec![action], self.address.clone(), 1, gas::GAS_FOR_FT_TRANSFER)
         .then(crate::this_contract::on_after_rewards_claim_from_defi(account_id.clone(), amount, token_id.clone(), 1, gas::GAS_FOR_FT_TRANSFER));
+    }
+
+    fn get_action_required_deposit_and_gas(&self, action: YieldSourceAction) -> (Balance, Gas){
+        let result:(Balance, Gas) = match action {
+            YieldSourceAction::GetReward => (0,gas::GET_BALANCE_FROM_DEFI),
+            YieldSourceAction::Claim => (1+1, gas::GAS_FOR_FT_TRANSFER + gas::GAS_FOR_FT_TRANSFER),
+            YieldSourceAction::Transfer => (1, GAS_FOR_TRANSFER_TO_DEFI),
+        };
+
+        return result;
     }
     
 }

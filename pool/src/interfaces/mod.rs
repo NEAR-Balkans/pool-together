@@ -33,7 +33,7 @@ pub mod pool {
 }
 
 pub mod defi {
-    use near_sdk::{Balance, borsh::{self, BorshDeserialize, BorshSerialize}, AccountId, PromiseOrValue, Promise};
+    use near_sdk::{Balance, borsh::{self, BorshDeserialize, BorshSerialize}, AccountId, PromiseOrValue, Promise, Gas};
 
     use crate::Contract;
 
@@ -43,10 +43,17 @@ pub mod defi {
         Metapool { address: AccountId }
     }
 
+    pub enum YieldSourceAction{
+        Transfer,
+        Claim,
+        GetReward,
+    }
+
     pub trait IYieldSource{
-        fn get_reward(&self, account_id: &AccountId) -> Promise;
+        fn get_reward(&self) -> Promise;
         fn transfer(&self, token_id: &AccountId, amount: Balance);
         fn claim(&self, account_id: &AccountId, token_id:&AccountId, amount: Balance);
+        fn get_action_required_deposit_and_gas(&self, action: YieldSourceAction) -> (Balance, Gas);
     }
 }
 

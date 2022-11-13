@@ -1,3 +1,6 @@
+use crate::Contract;
+use crate::env;
+
 pub mod storage_keys{
     use near_sdk::{BorshStorageKey, CryptoHash};
     use near_sdk::borsh::{self, BorshSerialize};
@@ -31,6 +34,12 @@ pub mod utils{
         let arr=[bytes, &pick.to_be_bytes()].concat();
         return keccak256_array(&arr);
     } 
+}
+
+impl Contract{
+    pub(crate) fn assert_owner(&self){
+        assert_eq!(self.owner_id, env::signer_account_id());
+    }
 }
 
 pub mod gas{
