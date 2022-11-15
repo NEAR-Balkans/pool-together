@@ -50,6 +50,7 @@ pub mod tests {
         ft_transfer(&tokens.correct_token.account_id(), &tokens.correct_token, &users.bob.account_id(), to_token_amount(100));
         
         assert_eq!(ft_balance_of(&tokens.correct_token.account_id(), &users.alice), to_token_amount(30));
+        add_near_tokens_for_future_transfer_calls(&users.alice, &env.pool.account_id(), 10);
 
         // Send 10 tokens from Alice to pool contract
         ft_transfer_call(&tokens.correct_token.account_id(), &users.alice, &env.pool.account_id(), to_token_amount(10), "");

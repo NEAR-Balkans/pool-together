@@ -19,6 +19,7 @@ pub fn get_contract() -> Contract{
         mmmm(), 
         AccountId::new_unchecked("usdc".to_string()), 
         sec(),
-        burrow(), 
+        burrow(),
+        AccountId::new_unchecked("usdc".to_string()),
     );
 }

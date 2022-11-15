@@ -58,6 +58,8 @@ pub struct Contract {
     metadata: LazyOption<FungibleTokenMetadata>,
     // the token that is going to be used
     deposited_token_id: AccountId,
+    // token that rewards will be payed into
+    reward_token_id: AccountId,
     tickets: AccountsDepositHistory,
     prizes: PrizeBuffer,
     draw_contract: AccountId,
@@ -138,7 +140,7 @@ impl Contract {
     /// Initializes the contract with the given total supply owned by the given `owner_id` with
     /// default metadata (for example purposes only).
     #[init]
-    pub fn new_default_meta(owner_id: AccountId, token_for_deposit: AccountId, draw_contract: AccountId, burrow_address: AccountId) -> Self {
+    pub fn new_default_meta(owner_id: AccountId, token_for_deposit: AccountId, draw_contract: AccountId, burrow_address: AccountId, reward_token: AccountId) -> Self {
         Self::new(
             owner_id,
             token_for_deposit,
@@ -153,6 +155,7 @@ impl Contract {
             },
             draw_contract,
             burrow_address,
+            reward_token,
         )
     }
 
@@ -168,6 +171,7 @@ impl Contract {
         metadata: FungibleTokenMetadata,
         draw_contract: AccountId,
         burrow_address: AccountId,
+        reward_token: AccountId,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
@@ -175,6 +179,7 @@ impl Contract {
             token: FungibleToken::new(utils::storage_keys::StorageKeys::Token),
             metadata: LazyOption::new(utils::storage_keys::StorageKeys::TokenMetadata, Some(&metadata)),
             deposited_token_id: deposited_token_id,
+            reward_token_id: reward_token,
             tickets: AccountsDepositHistory::default(),
             prizes: PrizeBuffer::new(),
             draw_contract: draw_contract,

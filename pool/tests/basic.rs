@@ -39,6 +39,18 @@ async fn storage_deposit(caller: &Account, ft_contract: &AccountId) -> anyhow::R
     return Ok(());
 }
 
+async fn send_near_to_contract_for_future_ft_transfers(caller: &Account, pool: &AccountId, yocto: Balance) -> anyhow::Result<()>{
+    caller.call(pool, "accept_deposit_for_future_fungible_token_transfers")
+        .args_json(json!({}))
+        .gas(DEFAULT_GAS)
+        .deposit(yocto)
+        .transact()
+        .await?
+        .unwrap();
+
+    return Ok(());
+}
+
 async fn ft_transfer(sender: &Account, receiver: &AccountId, amount: Balance, ft_token: &AccountId) -> anyhow::Result<()>{
     sender.call(ft_token, "ft_transfer")
         .args_json(json!({"receiver_id": receiver, "amount": amount.to_string()}))
@@ -96,7 +108,7 @@ async fn deploy_and_init_pool(owner: &Account, token: &AccountId, draw: &Account
     
     let res = pool_contract
         .call("new_default_meta")
-        .args_json(json!({"owner_id": pool_acc.id(), "token_for_deposit": token, "draw_contract": draw, "burrow_address": burrow}))
+        .args_json(json!({"owner_id": pool_acc.id(), "token_for_deposit": token, "draw_contract": draw, "burrow_address": burrow, "reward_token": token}))
         .gas(DEFAULT_GAS)
         .transact()
         .await?
@@ -266,6 +278,7 @@ async fn test_sending_correct_token() -> anyhow::Result<()>{
 
     storage_deposit(&test1, &ft.id()).await?;
     storage_deposit(pool.as_account(), &ft.id()).await?;
+    send_near_to_contract_for_future_ft_transfers(&test1, pool.id(), 2).await?;
 
     ft_transfer(ft.as_account(), test1.id(), to_token_amount(3), ft.id()).await?;
     ft_transfer_call(&test1, pool.id(), to_token_amount(2), ft.id(), "").await?;
@@ -343,7 +356,7 @@ async fn test_sending_correct_token_check_defi() -> anyhow::Result<()>{
     ft_transfer(ft.as_account(), test1.id(), to_token_amount(3), ft.id()).await?;
     let test1_ft_balance = ft_balance_of(&test1, ft.id()).await?;
     assert_eq!(test1_ft_balance, to_token_amount(3));
-
+    send_near_to_contract_for_future_ft_transfers(&test1, pool.id(), 100).await?;
 
     /// Test1 user transfer 2 FT tokens to pool contract
     ft_transfer_call(&test1, pool.id(), to_token_amount(2), ft.id(), "").await?;
