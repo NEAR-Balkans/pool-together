@@ -116,10 +116,6 @@ impl IPool for Contract{
         self.deposited_token_id.clone()
     }
 
-    fn send_to_dex(&self) {
-        todo!()
-    }
-
     fn get_yield_source(&self) -> Box<dyn IYieldSource> {
         return match &self.yield_source{
             YieldSource::Burrow { address } =>

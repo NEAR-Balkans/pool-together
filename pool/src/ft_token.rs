@@ -1,7 +1,6 @@
 use crate::*;
 use near_sdk::ext_contract;
 
-#[near_bindgen]
 impl Contract{
     pub (crate) fn mint_tokens(&mut self, account_id: AccountId, balance: Balance){       
         if !self.token.accounts.contains_key(&account_id) {
