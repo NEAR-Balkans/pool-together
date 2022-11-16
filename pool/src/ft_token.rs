@@ -1,5 +1,4 @@
 use crate::*;
-use near_sdk::ext_contract;
 
 impl Contract{
     pub (crate) fn mint_tokens(&mut self, account_id: AccountId, balance: Balance){       

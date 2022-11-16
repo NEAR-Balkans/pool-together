@@ -1,7 +1,7 @@
-use crate::*;
+use crate::{*};
 use near_sdk::{borsh::{self, BorshDeserialize, BorshSerialize}};
 use crate::interfaces::prize_distribution::{PrizeDistribution, PrizeDistributionActor};
-use common::{generic_ring_buffer::{GenericRingBuffer, RingBuffer, Identifier}, types::{WinningNumber, U256}};
+use common::{generic_ring_buffer::{GenericRingBuffer, RingBuffer, Identifier}, types::{WinningNumber}};
 
 const MAX_PRIZES_CAPACITY: usize = 32;
 const MIN_PICK_COST: Balance = 1;
@@ -116,16 +116,10 @@ impl Contract{
 #[near_bindgen]
 impl PrizeDistributionActor for Contract{
     fn get_prize_distribution(&self, draw_id: DrawId) -> PrizeDistribution {
-        for idx in 0..self.prizes.buffer.arr.len(){
-            if self.prizes.buffer.arr[idx].draw_id == draw_id{
-                return self.prizes.buffer.arr[idx];
-            }
-        }
-
-        return PrizeDistribution::default();
+        return self.prizes.buffer.get_by_identifier(draw_id);
     }
 
-    fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: Balance) {
+    fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: U128) {
         self.assert_owner();
         if self.get_prize_distribution(draw_id) != PrizeDistribution::default(){
             return;
@@ -137,10 +131,10 @@ impl PrizeDistributionActor for Contract{
     }
 
     #[payable]
-    fn claim(&mut self, draw_id: U128, pick: U128) -> u128{
-        let prize_distribution = self.get_prize_distribution(draw_id.0);
+    fn claim(&mut self, draw_id: DrawId, pick: U128) -> U128{
+        let prize_distribution = self.get_prize_distribution(draw_id);
         let caller = env::signer_account_id();
-        let picks_for_draw = self.acc_picks.get_picks_for_draw(&caller, &draw_id.0);
+        let picks_for_draw = self.acc_picks.get_picks_for_draw(&caller, &draw_id);
         
         if picks_for_draw == NumPicks::default(){
             panic!("There are no generated picks for this draw for client");
@@ -165,7 +159,7 @@ impl PrizeDistributionActor for Contract{
         log!("Prize to claim is {} {}", prize_to_take, self.deposited_token_id);
         self.get_yield_source().claim(&caller, &self.deposited_token_id, prize_to_take);
         
-        return prize_to_take;
+        return prize_to_take.into();
     }
 }
 

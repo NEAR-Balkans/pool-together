@@ -1,6 +1,5 @@
 use common::generic_ring_buffer::{GenericRingBuffer, RingBuffer, Identifier};
 use common::types::{DrawId, U256};
-use near_sdk::collections::LookupMap;
 use near_sdk::{env, near_bindgen, EpochHeight, PanicOnDefault};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use interfaces::draw::{DrawCreator, Draw, DrawBuffer, DrawRegister};

@@ -33,9 +33,7 @@ pub mod pool {
 }
 
 pub mod defi {
-    use near_sdk::{Balance, borsh::{self, BorshDeserialize, BorshSerialize}, AccountId, PromiseOrValue, Promise, Gas};
-
-    use crate::Contract;
+    use near_sdk::{Balance, borsh::{self, BorshDeserialize, BorshSerialize}, AccountId, Promise, Gas};
 
     #[derive(BorshDeserialize, BorshSerialize)]
     pub enum YieldSource{
@@ -59,8 +57,7 @@ pub mod defi {
 
 pub mod prize_distribution{
     const MAX_TIERS:usize = 16;
-    use common::types::{NumPicks, DrawId, WinningNumber};
-    use near_sdk::Balance;
+    use common::types::{DrawId, WinningNumber, NumPicks};
     use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
     use near_sdk::json_types::U128;
     use near_sdk::serde::{Serialize, Deserialize};
@@ -69,21 +66,22 @@ pub mod prize_distribution{
     #[serde(crate = "near_sdk::serde")]
     pub struct PrizeDistribution{
         pub number_of_picks: u64,
-        pub draw_id: u128,
+        pub draw_id: DrawId,
         pub cardinality: u8,
         pub bit_range_size: u8,
         pub tiers: [u32; MAX_TIERS],
         pub prize: u128,
-        pub max_picks: u128,
+        pub max_picks: NumPicks,
         pub start_time: u64,
         pub end_time: u64,
         #[serde(skip_serializing)]
         pub winning_number: WinningNumber,
     }
+
     pub trait PrizeDistributionActor{
-        fn get_prize_distribution(&self, draw_id: u128) -> PrizeDistribution;
-        fn add_prize_distribution(&mut self, draw_id: u128, prize_awards: Balance);
-        fn claim(&mut self, draw_id: U128, pick: U128) -> u128;
+        fn get_prize_distribution(&self, draw_id: DrawId) -> PrizeDistribution;
+        fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: U128);
+        fn claim(&mut self, draw_id: DrawId, pick: U128) -> U128;
     }
 }
 

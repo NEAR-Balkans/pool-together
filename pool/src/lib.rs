@@ -8,12 +8,12 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LazyOption, LookupMap};
 use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise, PanicOnDefault, PromiseOrValue, assert_one_yocto, ext_contract, PromiseError, BorshStorageKey};
+use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise, PanicOnDefault, PromiseOrValue, ext_contract, PromiseError};
 use interfaces::pool::{IPool, ITwab};
 use interfaces::defi::IYieldSource;
 use picks::AccountsPicks;
 use twab::AccountsDepositHistory;
-use prize::PrizeBuffer;
+use prize::{PrizeBuffer};
 use common::types::{DrawId, NumPicks, WinningNumber};
 use interfaces::defi::{YieldSource, YieldSourceAction};
 use utils::gas;
@@ -34,7 +34,6 @@ mod burrow;
 
 const PROTOCOL_FT_SYMBOL: &str = "PTTICK";
 const PROTOCOL_FT_NAME: &str = "Pool Together Ticket";
-const TOTAL_SUPPLY: u128 = 1_000;
 
 #[derive(Deserialize, Debug, Serialize)]
 #[serde(crate = "near_sdk::serde")]
@@ -222,9 +221,14 @@ impl Contract {
     pub fn get_reward(&self) -> Promise{
         let ys = self.get_yield_source();
         let (_, gas) = ys.get_action_required_deposit_and_gas(YieldSourceAction::GetReward);
+        log!("{}", env::prepaid_gas().0);
         assert!(env::prepaid_gas() >= gas);
 
         return ys.get_reward();
+    }
+
+    pub fn get_deposited_amount(&self) -> U128{
+        return self.token.total_supply.into();
     }
 }
 
@@ -246,6 +250,7 @@ impl FungibleTokenReceiver for Contract{
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
+        log!("{} ft_on_transfer", env::current_account_id());
         self.assert_correct_token_is_send_to_contract(&env::predecessor_account_id());
         let (deposit, gas) = self.get_yield_source().get_action_required_deposit_and_gas(YieldSourceAction::Transfer);
         self.assert_sender_has_deposited_enough(&sender_id, deposit);
@@ -386,6 +391,8 @@ mod tests {
 
     #[test]
     fn check_total_supply_twabs(){
-
+        let setup = setup();
+        let bal = setup.average_balance_between_timestamps(&mmmm(), 10000, 20000);
+        println!("{}", bal);
     }
 }
