@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-#./build_all.sh
+./build_all.sh
 
 MASTER_ACCOUNT=$1
 BURROW_ACCOUNT=$2
