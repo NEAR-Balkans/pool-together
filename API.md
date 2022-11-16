@@ -35,6 +35,9 @@ trait Contract {
     /// Showing how much tokens the contract has generated
     fn get_reward(&self) -> Promise;
 
+    /// Showing how much the contract deposited to the external defi
+    fn get_deposited_amount(&self) -> Balance;
+
     /// Returns the fungible token metadata as per NEP-141 spec
     fn ft_metadata(&self) -> FungibleTokenMetadata;
 
