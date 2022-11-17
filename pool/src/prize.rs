@@ -5,7 +5,7 @@ use common::{generic_ring_buffer::{GenericRingBuffer, RingBuffer, Identifier}, t
 
 const MAX_PRIZES_CAPACITY: usize = 32;
 const MIN_PICK_COST: Balance = 1;
-const BIT_RANGE_SIZE: u8 = 1;
+const BIT_RANGE_SIZE: u8 = 4;
 const TIERS: [u32; 16]= [20,30,20,10,5,5,10,0,0,0,0,0,0,0,0,0];
 const TIERS_NOMINAL:u128 = 100;
 const PRIZE_DISTRIBUTION_TIME_OFFSET: u64 = 1000 * 3600 * 24 * 7;
@@ -81,20 +81,23 @@ impl Contract{
     }
 
     #[private]
-    pub fn on_get_draw_and_add_prize_distribution(&mut self, prize_awards: Balance, #[callback_result] call_result: Result<Draw, PromiseError>) {
+    pub fn on_get_draw_and_add_prize_distribution(&mut self, prize_awards: U128, #[callback_result] call_result: Result<Draw, PromiseError>) {
         if call_result.is_err(){
             log!("Error when getting draw");
         }
+        log!("{} {}", env::prepaid_gas().0, env::used_gas().0);
 
         let draw = call_result.unwrap();
+        
         let mut cardinality:u8 = 0;
         let tickets_supply = self.tickets.average_total_supply_between_timestamps(draw.started_at, draw.completed_at);
         let max_picks = tickets_supply / MIN_PICK_COST;
+        log!("{}", max_picks);
         let bit_range_sized_two = 2u8.pow(BIT_RANGE_SIZE.into());
+        
         while u128::from(bit_range_sized_two.pow(cardinality.into())) < max_picks {
             cardinality += 1;
         }
-
         let number_of_picks: u64 = bit_range_sized_two.pow(cardinality.into()).into();
         let prize_distribution = PrizeDistribution {
             number_of_picks: number_of_picks, 
@@ -103,7 +106,7 @@ impl Contract{
             bit_range_size: BIT_RANGE_SIZE,
             tiers: TIERS,
             max_picks: max_picks,
-            prize: prize_awards,
+            prize: prize_awards.0,
             start_time: draw.completed_at + PRIZE_DISTRIBUTION_TIME_OFFSET,
             end_time: draw.completed_at + 2 * PRIZE_DISTRIBUTION_TIME_OFFSET,
             winning_number: draw.winning_random_number,
@@ -121,12 +124,14 @@ impl PrizeDistributionActor for Contract{
 
     fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: U128) {
         self.assert_owner();
+        log!("{} {}", env::prepaid_gas().0, env::used_gas().0);
         if self.get_prize_distribution(draw_id) != PrizeDistribution::default(){
             return;
         }
         let draw_promise = ext_draw::get_draw(draw_id, self.draw_contract.clone(), 0, gas::GET_DRAW);
+        log!("{} {}", env::prepaid_gas().0, env::used_gas().0);
         draw_promise.then(
-            this_contract::on_get_draw_and_add_prize_distribution(prize_awards, env::current_account_id(), 0, gas::GET_DRAW)
+            this_contract::on_get_draw_and_add_prize_distribution(prize_awards, env::current_account_id(), 0, env::prepaid_gas() - env::used_gas() - near_sdk::Gas(100000000000000))
         );
     }
 

@@ -48,7 +48,8 @@ impl Contract{
 pub mod gas{
     use near_sdk::{Gas};
 
-    pub const GET_DRAW: Gas = Gas(20_000_000_000_000);
+    pub const ON_GET_DRAW: Gas = Gas(15_000_000_000_000);
+    pub const GET_DRAW: Gas = Gas(1_000_000_000_000);
     pub const GET_BALANCE_FROM_DEFI: Gas = Gas(20_000_000_000_000);
     
     pub const GAS_FOR_FT_TRANSFER: Gas = Gas(Gas::ONE_TERA.0 * 10);
