@@ -169,6 +169,7 @@ async fn create_account(owner: &Account, acc_name: &str) -> anyhow::Result<Accou
 
 async fn setup() -> anyhow::Result<(Contract, Contract, Contract, Contract, Account)>{
     let workspaces = workspaces::sandbox().await?;
+    
     let root = workspaces.root_account().unwrap();
     let ft_contract = deploy_and_init_token(&root).await?;
     let draw_contract = deploy_and_init_draw(&root).await?;
@@ -384,6 +385,55 @@ async fn test_sending_correct_token_check_defi() -> anyhow::Result<()>{
         .json::<Vec<TokenAmountsView>>()?;
 
     println!("{:?}", res);
+
+    return Ok(());
+}
+
+#[tokio::test]
+async fn test_add_prize_distribution() -> anyhow::Result<()>{
+    let workspaces = workspaces::sandbox().await?;
+    let root = workspaces.root_account().unwrap();
+    let ft_contract = deploy_and_init_token(&root).await?;
+    let draw_contract = deploy_and_init_draw(&root).await?;
+    let defi = deploy_and_init_defi(&root).await?;
+    let pool_contract = deploy_and_init_pool(&root, ft_contract.id(), draw_contract.id(), defi.id()).await?;
+
+    let res = draw_contract.call("start_draw")
+    .args_json(json!({}))
+    .max_gas()
+    .transact()
+    .await?
+    .into_result();
+
+    workspaces.fast_forward(10000).await?;
+    let can_complete_draw = draw_contract.call("can_complete_draw")
+        .args_json(json!({}))
+        .max_gas()
+        .view()
+        .await?
+        .json::<bool>()?;
+
+    assert_eq!(can_complete_draw, true);
+    draw_contract.call("complete_draw")
+        .args_json(json!({}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let res = pool_contract.as_account().call(pool_contract.id(), "add_prize_distribution")
+        .args_json(json!({"draw_id": 1, "prize_awards": "1000000"}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    res.logs().iter().for_each(|el| {
+        println!("{}", *el);
+    });
+
+    pool_contract.view("get_prize_distribution", json!({"draw_id": 1}).to_string().into_bytes())
+        .await?;
 
     return Ok(());
 }
