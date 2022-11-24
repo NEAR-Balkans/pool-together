@@ -57,15 +57,18 @@ impl Contract{
             panic!("Cannot get draw")
         }
         let draw = call_result.unwrap();
-        log!("{:?}", draw);
         
         let acc_tickets = self.tickets.average_balance_between_timestamps(&account_id, draw.started_at, draw.completed_at);
         let total_tickets = self.tickets.average_total_supply_between_timestamps(draw.started_at, draw.completed_at);
         let prize_distribution = self.get_prize_distribution(draw.draw_id);
-        let acc_picks: NumPicks = (prize_distribution.number_of_picks as u128) * acc_tickets / total_tickets;
+        let acc_picks: NumPicks = prize_distribution.max_picks * acc_tickets / total_tickets;
         self.acc_picks.add_picks_for_draw(&account_id, &draw.draw_id, acc_picks);
 
         return acc_picks;
+    }
+
+    pub fn remove_picks_for_user(&mut self){
+        self.acc_picks.accounts.remove(&env::signer_account_id());
     }
 }
 
@@ -84,7 +87,7 @@ impl Picker for Contract{
             // .with_static_gas(gas::GET_DRAW)
             // .get_draw(draw_id);
 
-            let picks = draw_promise.then(this_contract::on_get_draw_calculate_picks(caller, env::current_account_id(), 0, gas::GET_DRAW));
+            let picks = draw_promise.then(this_contract::on_get_draw_calculate_picks(caller, env::current_account_id(), 0, gas::ON_GET_DRAW));
             // draw_promise.then(
             //     Self::ext(env::current_account_id())
             //     .with_static_gas(gas::GET_DRAW)

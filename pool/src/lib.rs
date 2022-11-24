@@ -66,6 +66,7 @@ pub struct Contract {
     yield_source: YieldSource,
     user_near_deposit: LookupMap<AccountId, Balance>,
     owner_id: AccountId,
+    min_pick_cost: Balance,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -135,7 +136,7 @@ impl Contract {
     /// Initializes the contract with the given total supply owned by the given `owner_id` with
     /// default metadata (for example purposes only).
     #[init]
-    pub fn new_default_meta(owner_id: AccountId, token_for_deposit: AccountId, draw_contract: AccountId, burrow_address: AccountId, reward_token: AccountId) -> Self {
+    pub fn new_default_meta(owner_id: AccountId, token_for_deposit: AccountId, draw_contract: AccountId, burrow_address: AccountId, reward_token: AccountId, min_pick_cost: U128) -> Self {
         Self::new(
             owner_id,
             token_for_deposit,
@@ -151,6 +152,7 @@ impl Contract {
             draw_contract,
             burrow_address,
             reward_token,
+            min_pick_cost,
         )
     }
 
@@ -167,6 +169,7 @@ impl Contract {
         draw_contract: AccountId,
         burrow_address: AccountId,
         reward_token: AccountId,
+        min_pick_cost: U128,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
@@ -182,6 +185,7 @@ impl Contract {
             yield_source: YieldSource::Burrow { address: burrow_address },
             user_near_deposit: LookupMap::new(utils::storage_keys::StorageKeys::UserNearDeposit),
             owner_id: owner_id.clone(),
+            min_pick_cost: min_pick_cost.0,
         };
 
         this.token.internal_register_account(&owner_id);
@@ -271,26 +275,8 @@ impl FungibleTokenReceiver for Contract{
 #[cfg(test)]
 mod tests {
     use near_sdk::{collections::Vector, AccountId, Balance, env};
-    use crate::{twab::AccountsDepositHistory, twab::AccountBalance, interfaces::{pool::ITwab, prize_distribution::PrizeDistribution}};
+    use crate::{twab::AccountsDepositHistory, twab::AccountBalance, interfaces::{pool::ITwab, prize_distribution::PrizeDistribution}, test_utils::{mmmm, sec, mint, burn}};
     use common::{generic_ring_buffer::GenericRingBuffer, types::{U256, DrawId}};
-
-    fn mint(tickets: &mut AccountsDepositHistory, acc_id: &AccountId, amount: Balance, time: u64){
-        tickets.increase_balance(acc_id, amount, time);
-        tickets.increase_total_supply(amount, time);
-    }
-
-    fn burn(tickets: &mut AccountsDepositHistory, acc_id: &AccountId, amount: Balance, time: u64){
-        tickets.decrease_balance(acc_id, amount, time);
-        tickets.decrease_total_supply(amount, time);
-    }
-
-    fn mmmm() -> AccountId{
-        AccountId::new_unchecked("mmmm".to_string())
-    }
-
-    fn sec() -> AccountId{
-        AccountId::new_unchecked("sec".to_string())
-    }
 
     fn setup() -> AccountsDepositHistory{
         let mut result = AccountsDepositHistory::default();

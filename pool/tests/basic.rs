@@ -108,7 +108,7 @@ async fn deploy_and_init_pool(owner: &Account, token: &AccountId, draw: &Account
     
     let res = pool_contract
         .call("new_default_meta")
-        .args_json(json!({"owner_id": pool_acc.id(), "token_for_deposit": token, "draw_contract": draw, "burrow_address": burrow, "reward_token": token}))
+        .args_json(json!({"owner_id": pool_acc.id(), "token_for_deposit": token, "draw_contract": draw, "burrow_address": burrow, "reward_token": token, "min_pick_cost": "10000000000000000000000"}))
         .gas(DEFAULT_GAS)
         .transact()
         .await?
@@ -422,7 +422,7 @@ async fn test_add_prize_distribution() -> anyhow::Result<()>{
         .into_result()?;
 
     let res = pool_contract.as_account().call(pool_contract.id(), "add_prize_distribution")
-        .args_json(json!({"draw_id": 1, "prize_awards": "1000000"}))
+        .args_json(json!({"draw_id": 1, "prize_awards": "1000000", "cardinality": 8, "bit_range_size": 4}))
         .max_gas()
         .transact()
         .await?

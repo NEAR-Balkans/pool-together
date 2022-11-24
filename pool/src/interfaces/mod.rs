@@ -74,13 +74,12 @@ pub mod prize_distribution{
         pub max_picks: NumPicks,
         pub start_time: u64,
         pub end_time: u64,
-        #[serde(skip_serializing)]
         pub winning_number: WinningNumber,
     }
 
     pub trait PrizeDistributionActor{
         fn get_prize_distribution(&self, draw_id: DrawId) -> PrizeDistribution;
-        fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: U128);
+        fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: U128, cardinality: u8, bit_range_size: u8);
         fn claim(&mut self, draw_id: DrawId, pick: U128) -> U128;
     }
 }

@@ -51,6 +51,8 @@ pub mod gas{
     pub const ON_GET_DRAW: Gas = Gas(15_000_000_000_000);
     pub const GET_DRAW: Gas = Gas(1_000_000_000_000);
     pub const GET_BALANCE_FROM_DEFI: Gas = Gas(20_000_000_000_000);
+    pub const CLAIM_REWARDS_CALLBACK: Gas = Gas(50_000_000_000_000);
+    pub const CLAIM_REWARDS_EXTERNAL_DEFI: Gas = Gas(50_000_000_000_000);
     
     pub const GAS_FOR_FT_TRANSFER: Gas = Gas(Gas::ONE_TERA.0 * 10);
     pub const GAS_FOR_TRANSFER_TO_DEFI:Gas = Gas(Gas::ONE_TERA.0 * 100);

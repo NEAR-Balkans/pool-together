@@ -31,7 +31,8 @@ near deploy --accountId $POOL --wasmFile ./res/pool.wasm --initFunction new_defa
       "token_for_deposit": "'$TOKEN'", 
       "draw_contract": "'$DRAW'",
       "burrow_address": "'$BURROW_ACCOUNT'",
-      "reward_token": "'$REWARD_TOKEN'"
+      "reward_token": "'$REWARD_TOKEN'",
+      "min_pick_cost": "10000000000000000000000"
     }'
 
 echo "Storage deposit"
