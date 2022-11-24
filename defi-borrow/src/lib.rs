@@ -37,17 +37,40 @@ pub enum Action{
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct TokensBalances{
     /// first variable shows the balance, second shows the reward tally
-    pub token_id_balance: UnorderedMap<AccountId, (NumShares, Balance)>,
-    pub tally_below_zero: bool,
+    pub token_id_balance: UnorderedMap<AccountId, (NumShares, Balance)>
 }
 
 impl Default for TokensBalances {
     fn default() -> Self {
         Self { 
-            token_id_balance: UnorderedMap::new(b"tib".to_vec()),
-            tally_below_zero: false 
+            token_id_balance: UnorderedMap::new(b"tib".to_vec())
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct AssetView {
+    pub token_id: AccountId,
+    pub balance: Balance
+}
+
+impl Default for AssetView{
+    fn default() -> Self {
+        return Self { token_id: AccountId::new_unchecked("".to_string()), balance: Balance::default() };
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct AccountDetailedView {
+    pub account_id: AccountId,
+    /// A list of assets that are supplied by the account (but not used a collateral).
+    pub supplied: Vec<AssetView>,
+    /// A list of assets that are used as a collateral.
+    pub collateral: Vec<AssetView>,
+    /// A list of assets that are borrowed.
+    pub borrowed: Vec<AssetView>
 }
 
 
@@ -96,6 +119,23 @@ impl Contract{
         assert!(!env::state_exists(), "Already initialized");
 
         Contract::default()
+    }
+
+    pub fn get_account(&self) -> Option<AccountDetailedView>{
+        let acc_balances = self.accounts.get(&env::signer_account_id()).unwrap_or_default();
+
+        let result = AccountDetailedView{
+            account_id: env::signer_account_id(),
+            supplied: acc_balances
+                    .token_id_balance
+                    .into_iter()
+                    .map(|(token_id, (balance, reward))| AssetView { token_id: token_id, balance: balance + reward } )
+                    .collect(),
+            collateral: Vec::<AssetView>::new(),
+            borrowed: Vec::<AssetView>::new(),
+        };
+
+        return Some(result);
     }
 
     pub fn show_reward(&self, account_id: AccountId) -> Vec<TokenAmountsView>{
