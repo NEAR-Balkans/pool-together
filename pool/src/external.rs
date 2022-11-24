@@ -3,7 +3,7 @@ use crate::*;
 // Callback
 #[ext_contract(this_contract)]
 pub trait ExtSelf {
-    fn on_get_draw_and_add_prize_distribution(&mut self, prize_awards: U128, #[callback_result] call_result: Result<Draw, PromiseError>);
+    fn on_get_draw_and_add_prize_distribution(&mut self, prize_awards: U128, cardinality: u8, bit_range_size: u8, #[callback_result] call_result: Result<Draw, PromiseError>);
     fn on_get_draw_calculate_picks(&mut self, account_id: AccountId, #[callback_result] call_result: Result<Draw, PromiseError>) -> U128;
     fn on_get_reward_from_defi(&self, #[callback_result] call_result: Result<Option<AccountDetailedView>, PromiseError>)-> U128;
     fn on_after_rewards_claim_from_defi(&mut self, account_id: AccountId, amount: U128, #[callback_result] result: Result<(), PromiseError>);

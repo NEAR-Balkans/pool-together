@@ -59,14 +59,14 @@ impl Contract{
     }
 
     #[private]
-    pub fn on_after_rewards_claim_from_defi(&mut self, account_id: AccountId, amount: Balance, #[callback_result] result: Result<(), PromiseError>){
+    pub fn on_after_rewards_claim_from_defi(&mut self, account_id: AccountId, amount: U128, #[callback_result] result: Result<(), PromiseError>){
         if result.is_err(){
             log!("Error when claiming rewards from defi");
             return;
         }
 
         // Send to user account
-        ext_fungible_token::ft_transfer(account_id, U128(amount), None, self.deposited_token_id.clone(), 1, GAS_FOR_FT_TRANSFER);
+        ext_fungible_token::ft_transfer(account_id, amount, None, self.deposited_token_id.clone(), 1, GAS_FOR_FT_TRANSFER);
     }
 }
 
@@ -91,8 +91,8 @@ impl IYieldSource for BurrowYieldSource{
             asset_amount
         );
 
-        ext_defi::execute(vec![action], self.address.clone(), 1, gas::GAS_FOR_FT_TRANSFER)
-        .then(crate::this_contract::on_after_rewards_claim_from_defi(account_id.clone(), amount.into(), token_id.clone(), 1, gas::GAS_FOR_FT_TRANSFER));
+        ext_defi::execute(vec![action], self.address.clone(), 1, gas::CLAIM_REWARDS_EXTERNAL_DEFI)
+        .then(crate::this_contract::on_after_rewards_claim_from_defi(account_id.clone(), amount.into(), env::current_account_id(), 0, gas::CLAIM_REWARDS_CALLBACK));
     }
 
     fn get_action_required_deposit_and_gas(&self, action: YieldSourceAction) -> (Balance, Gas){
