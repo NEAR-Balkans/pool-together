@@ -71,6 +71,31 @@ pub mod generic_ring_buffer{
 
 pub mod types;
 
+pub mod utils{
+    use near_sdk::env;
+
+    use crate::types::U256;
+    fn as_u256(arr: &[u8; 32]) -> U256{
+        let mut result:U256 = U256::zero();
+        let mut shift:u16 = 0;
+    
+        for idx in 0..arr.len(){
+            result += U256::from(arr[idx]) << shift;
+            shift += 8;
+        }
+    
+        return result;
+    }
+
+    pub fn random_u256() -> U256{
+        let random_seed = env::random_seed(); // len 32
+        println!("Random seed is {:?}", random_seed.to_vec());
+        // using first 16 bytes (doesn't affect randomness)
+        return as_u256(random_seed.as_slice().try_into().expect("random seed of incorrect length"));
+    }
+    
+}
+
 #[cfg(test)]
 mod tests {
     use crate::generic_ring_buffer::{GenericRingBuffer, RingBuffer, Identifier};
