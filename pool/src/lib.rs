@@ -225,7 +225,6 @@ impl Contract {
     pub fn get_reward(&self) -> Promise{
         let ys = self.get_yield_source();
         let (_, gas) = ys.get_action_required_deposit_and_gas(YieldSourceAction::GetReward);
-        log!("{}", env::prepaid_gas().0);
         assert!(env::prepaid_gas() >= gas);
 
         return ys.get_reward();
@@ -274,7 +273,7 @@ impl FungibleTokenReceiver for Contract{
 
 #[cfg(test)]
 mod tests {
-    use near_sdk::{collections::Vector, AccountId, Balance, env};
+    use near_sdk::{collections::{Vector, LookupSet}, AccountId, Balance, env};
     use crate::{twab::AccountsDepositHistory, twab::AccountBalance, interfaces::{pool::ITwab, prize_distribution::PrizeDistribution}, test_utils::{mmmm, sec, mint, burn}};
     use common::{generic_ring_buffer::GenericRingBuffer, types::{U256, DrawId}};
 
@@ -380,5 +379,16 @@ mod tests {
         let setup = setup();
         let bal = setup.average_balance_between_timestamps(&mmmm(), 10000, 20000);
         println!("{}", bal);
+    }
+
+    #[test]
+    fn test_lookup(){
+        let mut c = LookupSet::<i32>::new(b"a");
+        c.insert(&1);
+        c.insert(&2);
+        c.insert(&3);
+        c.remove(&2);
+        assert_eq!(c.contains(&2), false);
+        assert_eq!(c.contains(&3), true);
     }
 }

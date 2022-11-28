@@ -33,6 +33,7 @@ pub mod pool {
 }
 
 pub mod defi {
+    use common::types::{DrawId, NumPicks};
     use near_sdk::{Balance, borsh::{self, BorshDeserialize, BorshSerialize}, AccountId, Promise, Gas};
 
     #[derive(BorshDeserialize, BorshSerialize)]
@@ -50,7 +51,7 @@ pub mod defi {
     pub trait IYieldSource{
         fn get_reward(&self) -> Promise;
         fn transfer(&self, token_id: &AccountId, amount: Balance);
-        fn claim(&self, account_id: &AccountId, token_id:&AccountId, amount: Balance);
+        fn claim(&self, account_id: &AccountId, token_id:&AccountId, amount: Balance, draw_id: DrawId, pick: NumPicks);
         fn get_action_required_deposit_and_gas(&self, action: YieldSourceAction) -> (Balance, Gas);
     }
 }
@@ -88,6 +89,6 @@ pub mod picker{
     use common::types::{DrawId, NumPicks};
     use near_sdk::{PromiseOrValue};
     pub trait Picker{
-        fn get_picks(&self, draw_id: DrawId) -> PromiseOrValue<NumPicks> ;
+        fn get_picks(&self, draw_id: DrawId) -> PromiseOrValue<NumPicks>;
     }
 }

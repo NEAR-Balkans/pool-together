@@ -3,13 +3,14 @@ use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::collections::{ UnorderedMap};
 use near_sdk::json_types::{U128};
 use near_sdk::serde::{Serialize, Deserialize};
+use near_sdk::serde_json::json;
 use near_sdk::{self, near_bindgen, ext_contract, log, env, AccountId, Balance, PromiseResult, Gas, Promise};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use std::vec::Vec;
 
 pub const ON_FUNDING_GAS: Gas = near_sdk::Gas(10_000_000_000_000);
 
-pub const GAS_FOR_FT_TRANSFER: Gas = near_sdk::Gas(50_000_000_000_000);
+pub const GAS_FOR_FT_TRANSFER: Gas = near_sdk::Gas(10_000_000_000_000);
 
 mod events;
 
@@ -52,12 +53,15 @@ impl Default for TokensBalances {
 #[serde(crate = "near_sdk::serde")]
 pub struct AssetView {
     pub token_id: AccountId,
-    pub balance: Balance
+    //#[serde(with = "u128_dec_format")]
+    pub balance: U128,
+    /// The number of shares this account holds in the corresponding asset pool
+    pub shares: U128,
 }
 
 impl Default for AssetView{
     fn default() -> Self {
-        return Self { token_id: AccountId::new_unchecked("".to_string()), balance: Balance::default() };
+        return Self { token_id: AccountId::new_unchecked("".to_string()), balance: Balance::default().into(), shares: U128(0) };
     }
 }
 
@@ -90,7 +94,7 @@ impl Default for Contract{
 
 #[ext_contract(ext_fungible_token)]
 pub trait ExtFt {
-    fn ft_transfer(&mut self, receiver_id: AccountId, amount: String, memo: Option<String>);
+    fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);
     fn ft_transfer_call(
         receiver_id: AccountId,
         amount: String,
@@ -112,6 +116,14 @@ pub struct TokenAmountsView{
     rewards: U128
 }
 
+#[derive(Serialize)]
+    #[serde(crate = "near_sdk::serde")]
+    struct AccountAmountToken<'a> {
+        pub account_id: &'a AccountId,
+        pub amount: U128,
+        pub token_id: &'a TokenId,
+    }
+
 #[near_bindgen]
 impl Contract{
     #[init]
@@ -122,18 +134,19 @@ impl Contract{
     }
 
     pub fn get_account(&self) -> Option<AccountDetailedView>{
-        let acc_balances = self.accounts.get(&env::signer_account_id()).unwrap_or_default();
-
+        let acc_balances = self.accounts.get(&env::predecessor_account_id()).unwrap_or_default();
         let result = AccountDetailedView{
-            account_id: env::signer_account_id(),
+            account_id: env::predecessor_account_id(),
             supplied: acc_balances
                     .token_id_balance
                     .into_iter()
-                    .map(|(token_id, (balance, reward))| AssetView { token_id: token_id, balance: balance + reward } )
+                    .map(|(token_id, (balance, reward))| AssetView { token_id: token_id, shares: U128(balance), balance: U128(balance + reward) } )
                     .collect(),
             collateral: Vec::<AssetView>::new(),
             borrowed: Vec::<AssetView>::new(),
         };
+
+        log!("Res {:?}", result);
 
         return Some(result);
     }
@@ -151,6 +164,28 @@ impl Contract{
 
     pub fn account_farm_claim_all(&self){}
 
+    fn log_event<T: Serialize>(event: &str, data: T) {
+        let event = json!({
+            "standard": "burrow",
+            "version": "1.0.0",
+            "event": event,
+            "data": [data]
+        });
+
+        log!("EVENT_JSON:{}", event.to_string());
+    }
+
+    fn withdraw_started(account_id: &AccountId, amount: Balance, token_id: &TokenId) {
+        Self::log_event(
+            "withdraw_started",
+            AccountAmountToken {
+                account_id: &account_id,
+                amount: amount.into(),
+                token_id: &token_id,
+            },
+        );
+    }
+
     #[payable]
     pub fn execute(&mut self, actions: Vec<Action>){
         let caller = env::predecessor_account_id();
@@ -166,8 +201,11 @@ impl Contract{
                     if asset_amount.amount.unwrap().0 > token_amount.1{
                         panic!("Trying to send amount that is not available");
                     }
+                    log!("DEFI Send {} {} to {}", asset_amount.amount.unwrap().0, asset_amount.token_id, caller.clone());
 
-                    ext_fungible_token::ft_transfer(caller.clone(), asset_amount.amount.unwrap().0.to_string(), None, asset_amount.token_id, 1, GAS_FOR_FT_TRANSFER);
+                    ext_fungible_token::ft_transfer(caller.clone(), asset_amount.amount.unwrap(), None, asset_amount.token_id.clone(), 1, GAS_FOR_FT_TRANSFER);
+
+                    Self::withdraw_started(&caller.clone(), asset_amount.amount.unwrap().0, &asset_amount.token_id);
                 }
             }   
         }       
@@ -266,6 +304,7 @@ impl FungibleTokenReceiver for Contract{
         }else{
             token_balance.1 += amount.0;
         }
+        log!("token balances {:?}", token_balance);
         account_tokens.token_id_balance.insert(&token_id, &token_balance);
         self.accounts.insert(&acc_id, &account_tokens);
 

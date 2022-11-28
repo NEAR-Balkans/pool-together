@@ -59,9 +59,10 @@ impl Contract{
     }
 
     #[private]
-    pub fn on_after_rewards_claim_from_defi(&mut self, account_id: AccountId, amount: U128, #[callback_result] result: Result<(), PromiseError>){
+    pub fn on_after_rewards_claim_from_defi(&mut self, account_id: AccountId, amount: U128, draw_id: DrawId, pick: U128, #[callback_result] result: Result<(), PromiseError>){
         if result.is_err(){
             log!("Error when claiming rewards from defi");
+            self.acc_picks.remove_claimed_pick_for_draw(&account_id, &draw_id, pick.0);
             return;
         }
 
@@ -85,14 +86,14 @@ impl IYieldSource for BurrowYieldSource{
     }
 
 
-    fn claim(&self, account_id: &AccountId, token_id: &AccountId, amount: Balance) {
+    fn claim(&self, account_id: &AccountId, token_id: &AccountId, amount: Balance, draw_id: DrawId, pick: NumPicks) {
         let asset_amount = AssetAmount{ token_id: token_id.clone(), amount: Some(U128(amount))};
         let action = Action::Withdraw(
             asset_amount
         );
 
         ext_defi::execute(vec![action], self.address.clone(), 1, gas::CLAIM_REWARDS_EXTERNAL_DEFI)
-        .then(crate::this_contract::on_after_rewards_claim_from_defi(account_id.clone(), amount.into(), env::current_account_id(), 0, gas::CLAIM_REWARDS_CALLBACK));
+        .then(crate::this_contract::on_after_rewards_claim_from_defi(account_id.clone(), amount.into(), draw_id, pick.into(), env::current_account_id(), 0, gas::CLAIM_REWARDS_CALLBACK));
     }
 
     fn get_action_required_deposit_and_gas(&self, action: YieldSourceAction) -> (Balance, Gas){

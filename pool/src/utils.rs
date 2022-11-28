@@ -16,6 +16,7 @@ pub mod storage_keys{
         Token,
         TokenMetadata,
         UserNearDeposit,
+        AccountClaimedPicks{account_hash: CryptoHash},
     }
 }
 

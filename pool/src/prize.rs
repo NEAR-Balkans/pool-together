@@ -103,10 +103,6 @@ impl Contract{
         return Ratio { numerator: prize_fraction as u128, denominator: number_of_prizes_for_tier as u128 * TIERS_NOMINAL }
     }
 
-    pub fn remove_prize_distribution(&mut self, idx: usize){
-        self.prizes.buffer.arr[idx] = PrizeDistribution::default();
-    }
-
     #[private]
     pub fn on_get_draw_and_add_prize_distribution(&mut self, prize_awards: U128, cardinality: u8, bit_range_size: u8, #[callback_result] call_result: Result<Draw, PromiseError>) {
         if call_result.is_err(){
@@ -158,15 +154,8 @@ impl PrizeDistributionActor for Contract{
     fn claim(&mut self, draw_id: DrawId, pick: U128) -> U128{
         let prize_distribution = self.get_prize_distribution(draw_id);
         let caller = env::signer_account_id();
-        let picks_for_draw = self.acc_picks.get_picks_for_draw(&caller, &draw_id);
-        
-        if picks_for_draw == NumPicks::default(){
-            panic!("There are no generated picks for this draw for client");
-        }
-
-        if pick.0 >= picks_for_draw {
-            panic!("Invalid pick");
-        }
+        // check if everything is okay with the pick and add it as claimed pick
+        self.acc_picks.check_and_add_picks_for_draw(&caller, &draw_id, pick.0);
 
         let (deposit, gas) = self.get_yield_source().get_action_required_deposit_and_gas(YieldSourceAction::Claim);
         if env::attached_deposit() < deposit{
@@ -184,7 +173,7 @@ impl PrizeDistributionActor for Contract{
         let prize_to_take = prize_tier_fraction.multiply(prize_distribution.prize);
 
         log!("Prize to claim is {} {}", prize_to_take, self.deposited_token_id);
-        self.get_yield_source().claim(&caller, &self.deposited_token_id, prize_to_take);
+        self.get_yield_source().claim(&caller, &self.deposited_token_id, prize_to_take, draw_id, pick.0);
         
         return prize_to_take.into();
     }
@@ -299,17 +288,17 @@ mod tests{
     fn test_claim(){
         assert_eq!("18327974331163228590", "18327974331163228590");
         let contract = get_contract();
-        let winning_num = U256::from_dec_str("102309448724510804930046314760258391709809310327864507891430205995199063538094").unwrap();
+        let winning_num = U256::from_dec_str("110764760720936366222033825268428769436781304912252756802424649970273906838888").unwrap();
 
-        let caller=AccountId::new_unchecked("poolt.testnet".to_string());
-        let cardinality = 8;
-        let masks = contract.create_masks(2, cardinality);
-        for x in 1..170{
+        let caller=AccountId::new_unchecked("test1.test.near".to_string());
+        let cardinality = 4;
+        let masks = contract.create_masks(1, cardinality);
+        for x in 1..4{
             let user_winning_number = get_user_winning_number(&caller, x);
             let tier_match = contract.get_tier_match(&masks, &user_winning_number, &winning_num);
             if tier_match < 8{
                 println!("{} {}", tier_match, x);
-                let fraction = contract.prize_tier_fraction(tier_match, 2, &TIERS);
+                let fraction = contract.prize_tier_fraction(tier_match, 1, &TIERS);
                 
             }
         }
