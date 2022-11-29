@@ -70,7 +70,6 @@ impl AccountsPicks{
     pub fn check_and_add_picks_for_draw(&mut self, account_id: &AccountId, draw_id: &DrawId, pick: NumPicks){
         let mut acc_draws_picks = self.get_draws(account_id);
         let mut pick_info = acc_draws_picks.get_pick_info(account_id, draw_id);
-        log!("{} has {} picks", account_id, pick_info.allowed_picks);
         assert!(pick_info.allowed_picks != NumPicks::default(), "There are no generated picks for this draw for client");
         assert!(pick_info.allowed_picks >= pick, "Invalid pick");
         assert!(!pick_info.claimed_picks.contains(&pick), "Pick already claimed");

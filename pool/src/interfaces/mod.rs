@@ -66,7 +66,6 @@ pub mod prize_distribution{
     #[derive(BorshDeserialize, BorshSerialize, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
     #[serde(crate = "near_sdk::serde")]
     pub struct PrizeDistribution{
-        pub number_of_picks: u64,
         pub draw_id: DrawId,
         pub cardinality: u8,
         pub bit_range_size: u8,

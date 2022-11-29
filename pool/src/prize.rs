@@ -114,7 +114,6 @@ impl Contract{
         let tickets_supply = self.tickets.average_total_supply_between_timestamps(draw.started_at, draw.completed_at);
         let max_picks = tickets_supply / self.min_pick_cost;
         let prize_distribution = PrizeDistribution {
-            number_of_picks: 0, 
             draw_id: draw.draw_id,
             cardinality: cardinality,
             bit_range_size: bit_range_size,
@@ -138,8 +137,9 @@ impl PrizeDistributionActor for Contract{
 
     fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: U128, cardinality: u8, bit_range_size: u8) {
         self.assert_owner();
-        assert!((cardinality * bit_range_size) as u16 <= 256);
+        assert!((cardinality * bit_range_size) as u16 <= 256 && (cardinality * bit_range_size) as u16 > 0);
         assert!(usize::from(cardinality) <= TIERS.len());
+        assert!(prize_awards.0 > 0);
 
         if self.get_prize_distribution(draw_id) != PrizeDistribution::default(){
             return;

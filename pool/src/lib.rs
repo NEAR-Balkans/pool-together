@@ -173,6 +173,22 @@ impl Contract {
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
+        assert!(
+            env::is_valid_account_id(owner_id.as_bytes()),
+            "The owner ID is invalid"
+        );
+        assert!(
+            env::is_valid_account_id(draw_contract.as_bytes()),
+            "The draw ID is invalid"
+        );
+        assert!(
+            env::is_valid_account_id(burrow_address.as_bytes()),
+            "Burrow contract ID is invalid"
+        );
+        assert!(
+            env::is_valid_account_id(deposited_token_id.as_bytes()),
+            "The token ID is invalid"
+        );
         let mut this = Self {
             token: FungibleToken::new(utils::storage_keys::StorageKeys::Token),
             metadata: LazyOption::new(utils::storage_keys::StorageKeys::TokenMetadata, Some(&metadata)),
