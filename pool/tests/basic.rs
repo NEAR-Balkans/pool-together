@@ -51,7 +51,7 @@ fn most_profitable_pick(caller: &near_sdk::AccountId, cardinality: u8, bit_range
         let user_winning_number = get_user_winning_number(&caller, x);
         let tier_match = get_tier_match(&masks, &user_winning_number, &winning_number);
         if tier_match < min_tier_match{
-            println!("tier {} pick {}", tier_match, x);
+            println!("{} tier {} pick {}", caller.as_str(), tier_match, x);
             let fraction = prize_tier_fraction(tier_match, 1, tiers);
             println!("{:?}", fraction);
             winning_pick = x;
@@ -713,6 +713,233 @@ async fn test_claim() -> anyhow::Result<()>{
 
     // defi balance should be equal to reward + initial deposit minus the reward claimed by test1 user
     assert_eq!(ft_balance_of(defi.as_account(), token.id()).await?, defi_balance - (balance - (initial_balance - deposit_to_pool)));
+
+    return Ok(());
+}
+
+#[tokio::test]
+async fn test_claim_multiple_users() -> anyhow::Result<()>{
+    let workspaces = workspaces::sandbox().await?;
+    let root = workspaces.root_account().unwrap();
+    let token = deploy_and_init_token(&root).await?;
+    let draw = deploy_and_init_draw(&root).await?;
+    let defi = deploy_and_init_defi(&root).await?;
+    let pool = deploy_and_init_pool(&root, token.id(), draw.id(), defi.id(), Some(1)).await?;
+
+    let test_1_initial_balance = to_token_amount(15);
+    let test_1_deposit_to_pool = to_token_amount(5);
+
+    let test_2_initial_balance = to_token_amount(50);
+    let test_2_deposit_to_pool = to_token_amount(10);
+
+    let test_3_initial_balance = to_token_amount(30);
+    let test_3_deposit_to_pool = to_token_amount(5);
+
+    // create accounts
+    let test1 = create_account(&root, "test1").await.unwrap();
+    let test2 = create_account(&root, "test2").await.unwrap();
+    let test3 = create_account(&root, "test3").await.unwrap();
+
+    // storage deposit for accounts
+    storage_deposit(&test1, token.id()).await?;
+    storage_deposit(&test2, token.id()).await?;
+    storage_deposit(&test3, token.id()).await?;
+
+    // transfer to test account tokens
+    ft_transfer(token.as_account(), test1.id(), test_1_initial_balance, token.id()).await?;
+    assert_eq!(test_1_initial_balance, ft_balance_of(&test1, token.id()).await?);
+
+    ft_transfer(token.as_account(), test2.id(), test_2_initial_balance, token.id()).await?;
+    assert_eq!(test_2_initial_balance, ft_balance_of(&test2, token.id()).await?);
+
+    ft_transfer(token.as_account(), test3.id(), test_3_initial_balance, token.id()).await?;
+    assert_eq!(test_3_initial_balance, ft_balance_of(&test3, token.id()).await?);
+
+    storage_deposit(pool.as_account(), token.id()).await?;
+    storage_deposit(defi.as_account(), token.id()).await?;
+    
+    // send from test account to pool some near tokens for future ft_transfer calls
+    test1
+        .call(pool.id(), "accept_deposit_for_future_fungible_token_transfers")
+        .deposit(10)
+        .transact()
+        .await?
+        .into_result()?;
+
+    test2
+        .call(pool.id(), "accept_deposit_for_future_fungible_token_transfers")
+        .deposit(10)
+        .transact()
+        .await?
+        .into_result()?;
+
+    test3
+        .call(pool.id(), "accept_deposit_for_future_fungible_token_transfers")
+        .deposit(10)
+        .transact()
+        .await?
+        .into_result()?;
+
+    // send 5 tokens to pool, those tokens should be sent to defi
+    ft_transfer_call(&test1, pool.id(), test_1_deposit_to_pool, token.id(), "").await?;
+    assert_eq!(test_1_initial_balance - test_1_deposit_to_pool, ft_balance_of(&test1, token.id()).await?);
+    // defi should have 5 FT tokens
+    assert_eq!(ft_balance_of(defi.as_account(), token.id()).await?, test_1_deposit_to_pool);
+    // test1 account should have 5 tickets in the pool
+    assert_eq!(ft_balance_of(&test1, pool.id()).await?, test_1_deposit_to_pool);
+
+    // send tokens to pool, those tokens should be sent to defi
+    ft_transfer_call(&test2, pool.id(), test_2_deposit_to_pool, token.id(), "").await?;
+    assert_eq!(test_2_initial_balance - test_2_deposit_to_pool, ft_balance_of(&test2, token.id()).await?);
+    // defi should have test_1_deposit + test_2_deposit FT tokens
+    assert_eq!(ft_balance_of(defi.as_account(), token.id()).await?, test_1_deposit_to_pool + test_2_deposit_to_pool);
+    // test1 account should have test_2_deposit amount tickets in the pool
+    assert_eq!(ft_balance_of(&test2, pool.id()).await?, test_2_deposit_to_pool);
+
+    // send tokens to pool, those tokens should be sent to defi
+    ft_transfer_call(&test3, pool.id(), test_3_deposit_to_pool, token.id(), "").await?;
+    assert_eq!(test_3_initial_balance - test_3_deposit_to_pool, ft_balance_of(&test3, token.id()).await?);
+    // defi should have test_1_deposit + test_2_deposit FT tokens
+    assert_eq!(ft_balance_of(defi.as_account(), token.id()).await?, test_1_deposit_to_pool + test_2_deposit_to_pool + test_3_deposit_to_pool);
+    // test1 account should have test_2_deposit amount tickets in the pool
+    assert_eq!(ft_balance_of(&test3, pool.id()).await?, test_3_deposit_to_pool);
+
+    // draw can be started
+    let can_start_draw = draw.as_account()
+        .call(draw.id(), "can_start_draw")
+        .view()
+        .await?
+        .json::<bool>()?;
+
+    assert_eq!(can_start_draw, true);
+
+    draw.as_account()
+        .call(draw.id(), "start_draw")
+        .transact()
+        .await?
+        .into_result()?;
+
+    let reward = to_token_amount(100);
+    // set reward to mocked defi
+    ft_transfer_call(token.as_account(), defi.id(), reward, token.id(), pool.id()).await?;
+    let defi_balance = ft_balance_of(defi.as_account(), token.id()).await?;
+    assert_eq!(defi_balance, test_1_deposit_to_pool + test_2_deposit_to_pool + test_3_deposit_to_pool + reward);
+
+    let generated_reward = test1
+        .call(pool.id(), "get_reward")
+        .max_gas()
+        .transact()
+        .await?
+        .json::<U128>()?.0;
+
+    assert_eq!(generated_reward, reward);
+
+    let mut can_complete = can_complete_draw(draw.as_account()).await?;
+
+    while !can_complete{
+        workspaces.fast_forward(1000).await?;
+        can_complete = can_complete_draw(draw.as_account()).await?;
+    }
+
+    complete_draw(draw.as_account()).await?;
+    
+    let cardinality:u8 = 4;
+    let bit_range_size:u8 = 1;
+
+    pool.as_account().call(pool.id(), "add_prize_distribution")
+        .args_json(json!({"draw_id": 1, "prize_awards": U128(generated_reward), "cardinality": cardinality, "bit_range_size": bit_range_size}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let prize_distribution = pool
+        .view("get_prize_distribution", json!({"draw_id": 1}).to_string().into_bytes())
+        .await?
+        .json::<PrizeDistribution>()?;
+
+    println!("{:?}", prize_distribution);
+
+    // find most profitable pick
+    let test_1_picks = test1.call(pool.id(), "get_picks")
+        .args_json(json!({"draw_id": 1}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?
+        .json::<NumPicks>()?;
+
+    let test_2_picks = test2.call(pool.id(), "get_picks")
+        .args_json(json!({"draw_id": 1}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?
+        .json::<NumPicks>()?;
+
+    let test_3_picks = test3.call(pool.id(), "get_picks")
+        .args_json(json!({"draw_id": 1}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?
+        .json::<NumPicks>()?;
+
+    println!("{} {} {}", test_1_picks, test_2_picks, test_3_picks);
+
+    // relation between deposits should be equal to the number of picks
+    // test1_deposit    test1_picks
+    // -------------  = -----------     
+    // test2_deposit    test2_picks
+
+    assert_eq!(test_1_deposit_to_pool * test_2_picks, test_2_deposit_to_pool * test_1_picks);
+
+    test1.call(pool.id(), "claim")
+        .args_json(json!({"draw_id": 1, "pick": U128(test_1_picks + 1)}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()
+        .expect_err("Invalid pick");
+
+    let winning_pick_test_1 = most_profitable_pick(&near_sdk::AccountId::new_unchecked(test1.id().to_string()), prize_distribution.cardinality, prize_distribution.bit_range_size, prize_distribution.winning_number, test_1_picks, &prize_distribution.tiers);
+    let winning_pick_test_2 = most_profitable_pick(&near_sdk::AccountId::new_unchecked(test2.id().to_string()), prize_distribution.cardinality, prize_distribution.bit_range_size, prize_distribution.winning_number, test_2_picks, &prize_distribution.tiers);
+    let winning_pick_test_3 = most_profitable_pick(&near_sdk::AccountId::new_unchecked(test3.id().to_string()), prize_distribution.cardinality, prize_distribution.bit_range_size, prize_distribution.winning_number, test_3_picks, &prize_distribution.tiers);
+
+    test1.call(pool.id(), "claim")
+        .args_json(json!({"draw_id": 1, "pick": U128(winning_pick_test_1)}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let test_1_balance = ft_balance_of(&test1, token.id()).await?;
+    println!("{} Balance is {}", test1.id(), test_1_balance);
+    assert!(test_1_balance > test_1_initial_balance - test_1_deposit_to_pool);
+
+    test2.call(pool.id(), "claim")
+        .args_json(json!({"draw_id": 1, "pick": U128(winning_pick_test_2)}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let test_2_balance = ft_balance_of(&test2, token.id()).await?;
+    println!("{} Balance is {}", test2.id(), test_2_balance);
+    assert!(test_2_balance > test_2_initial_balance - test_2_deposit_to_pool);
+
+    // expect err
+    test1.call(pool.id(), "claim")
+        .args_json(json!({"draw_id": 1, "pick": U128(winning_pick_test_1)}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()
+        .expect_err("Pick already claimed");
+
+    let expected_defi_balance = defi_balance - (test_1_balance - (test_1_initial_balance - test_1_deposit_to_pool)) - (test_2_balance - (test_2_initial_balance - test_2_deposit_to_pool));
+    // defi balance should be equal to reward + initial deposit minus the reward claimed by test1 user
+    assert_eq!(ft_balance_of(defi.as_account(), token.id()).await?, expected_defi_balance);
 
     return Ok(());
 }
