@@ -71,7 +71,7 @@ impl AccountsPicks{
         let mut acc_draws_picks = self.get_draws(account_id);
         let mut pick_info = acc_draws_picks.get_pick_info(account_id, draw_id);
         assert!(pick_info.allowed_picks != NumPicks::default(), "There are no generated picks for this draw for client");
-        assert!(pick_info.allowed_picks >= pick, "Invalid pick");
+        assert!(pick_info.allowed_picks > pick, "Invalid pick");
         assert!(!pick_info.claimed_picks.contains(&pick), "Pick already claimed");
 
         pick_info.claimed_picks.insert(&pick);
