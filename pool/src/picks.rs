@@ -114,6 +114,10 @@ impl Contract{
 #[near_bindgen]
 impl Picker for Contract{
     fn get_picks(&self, draw_id: DrawId) -> PromiseOrValue<NumPicks> {
+        if self.paused{
+            return PromiseOrValue::Value(0);
+        }
+        
         let caller = env::signer_account_id();
         let acc_draws_picks = self.acc_picks.get_draws(&caller);
 

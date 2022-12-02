@@ -17,6 +17,7 @@ pub mod storage_keys{
         TokenMetadata,
         UserNearDeposit,
         AccountClaimedPicks{account_hash: CryptoHash},
+        PauserUser,
     }
 }
 
@@ -43,6 +44,10 @@ pub mod utils{
 impl Contract{
     pub(crate) fn assert_owner(&self){
         assert_eq!(self.owner_id, env::signer_account_id());
+    }
+
+    pub(crate) fn assert_pauser_user(&self){
+        assert!(self.pauser_users.contains(&env::signer_account_id()));
     }
 }
 

@@ -136,6 +136,10 @@ impl PrizeDistributionActor for Contract{
     }
 
     fn add_prize_distribution(&mut self, draw_id: DrawId, prize_awards: U128, cardinality: u8, bit_range_size: u8) {
+        if self.paused{
+            return;
+        }
+
         self.assert_owner();
         assert!((cardinality * bit_range_size) as u16 <= 256 && (cardinality * bit_range_size) as u16 > 0);
         assert!(usize::from(cardinality) <= TIERS.len());
@@ -152,6 +156,10 @@ impl PrizeDistributionActor for Contract{
 
     #[payable]
     fn claim(&mut self, draw_id: DrawId, pick: U128) -> U128{
+        if self.paused{
+            return U128(0);
+        }
+
         let prize_distribution = self.get_prize_distribution(draw_id);
         let caller = env::signer_account_id();
         // check if everything is okay with the pick and add it as claimed pick

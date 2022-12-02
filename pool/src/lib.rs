@@ -5,7 +5,7 @@ use near_contract_standards::fungible_token::metadata::{
 use near_contract_standards::fungible_token::FungibleToken;
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LazyOption, LookupMap};
+use near_sdk::collections::{LazyOption, LookupMap, UnorderedSet};
 use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise, PanicOnDefault, PromiseOrValue, ext_contract, PromiseError};
@@ -67,6 +67,8 @@ pub struct Contract {
     user_near_deposit: LookupMap<AccountId, Balance>,
     owner_id: AccountId,
     min_pick_cost: Balance,
+    paused: bool,
+    pauser_users: UnorderedSet<AccountId>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -202,9 +204,12 @@ impl Contract {
             user_near_deposit: LookupMap::new(utils::storage_keys::StorageKeys::UserNearDeposit),
             owner_id: owner_id.clone(),
             min_pick_cost: min_pick_cost.0,
+            paused: false,
+            pauser_users: UnorderedSet::new(utils::storage_keys::StorageKeys::PauserUser),
         };
 
         this.token.internal_register_account(&owner_id);
+        this.pauser_users.insert(&owner_id);
         
         near_contract_standards::fungible_token::events::FtMint {
             owner_id: &owner_id,
@@ -252,13 +257,17 @@ impl Contract {
 
     #[payable]
     pub fn withdraw(&mut self, ft_tokens_amount: U128){
+        if self.paused{
+            return;
+        }
+
         let caller = env::signer_account_id();
         let acc_supplied_balance = self.token.ft_balance_of(caller.clone());
         assert!(ft_tokens_amount.0 <= acc_supplied_balance.0);
         
         let ys = self.get_yield_source();
         let (deposit, gas) = ys.get_action_required_deposit_and_gas(YieldSourceAction::Withdraw);
-        
+
         if env::attached_deposit() < deposit{
             self.assert_sender_has_deposited_enough(&caller, deposit);
             self.decrement_user_near_deposit(&caller, Some(deposit));
@@ -267,6 +276,33 @@ impl Contract {
         
         ys.withdraw(&caller, &self.deposited_token_id, ft_tokens_amount.0);
     }
+
+    /// Add authorized user to pause/unpause the contract
+    pub fn add_pauser_user(&mut self, account_id: AccountId) {
+        self.assert_owner();
+        self.pauser_users.insert(&account_id);
+    }
+
+    /// Remove authorized user to pause/unpause the contract
+    pub fn remove_pauser_user(&mut self, account_id: AccountId) {
+        self.assert_owner();
+        self.pauser_users.remove(&account_id);
+    }
+
+    pub fn pause(&mut self){
+        self.assert_pauser_user();
+        assert!(!self.paused, "Contract is already paused");
+
+        self.paused = true;
+    }
+
+    pub fn resume(&mut self){
+        self.assert_pauser_user();
+        assert!(self.paused, "Contract is already resumed");
+
+        self.paused = false;
+    }
+
 }
 
 near_contract_standards::impl_fungible_token_core!(Contract, token, on_tokens_burned);
@@ -287,6 +323,10 @@ impl FungibleTokenReceiver for Contract{
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
+        if self.paused{
+            return PromiseOrValue::Value(amount);
+        }
+
         log!("{} ft_on_transfer", env::current_account_id());
         self.assert_correct_token_is_send_to_contract(&env::predecessor_account_id());
         let (deposit, gas) = self.get_yield_source().get_action_required_deposit_and_gas(YieldSourceAction::Transfer);
