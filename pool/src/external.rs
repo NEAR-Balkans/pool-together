@@ -7,6 +7,7 @@ pub trait ExtSelf {
     fn on_get_draw_calculate_picks(&mut self, account_id: AccountId, #[callback_result] call_result: Result<Draw, PromiseError>) -> U128;
     fn on_get_reward_from_defi(&self, #[callback_result] call_result: Result<Option<AccountDetailedView>, PromiseError>)-> U128;
     fn on_after_rewards_claim_from_defi(&mut self, account_id: AccountId, amount: U128, draw_id: DrawId, pick: U128, #[callback_result] result: Result<(), PromiseError>);
+    fn on_after_withdraw_tokens_from_defi(&mut self, receiver_id: AccountId, amount: U128, #[callback_result] result: Result<(), PromiseError>);
 }
 
 #[ext_contract(ext_draw)]

@@ -69,6 +69,19 @@ impl Contract{
         // Send to user account
         ext_fungible_token::ft_transfer(account_id, amount, None, self.deposited_token_id.clone(), 1, GAS_FOR_FT_TRANSFER);
     }
+
+    #[private]
+    pub fn on_after_withdraw_tokens_from_defi(&mut self, receiver_id: AccountId, amount: U128, #[callback_result] result: Result<(), PromiseError>){
+        if result.is_err(){
+            log!("Error when withdrawing rewards from defi");
+            return;
+        }
+
+        self.burn_tokens(receiver_id.clone(), amount.0);
+
+        // Send to user account
+        ext_fungible_token::ft_transfer(receiver_id, amount, None, self.deposited_token_id.clone(), 1, GAS_FOR_FT_TRANSFER);
+    }
 }
 
 impl IYieldSource for BurrowYieldSource{
@@ -85,6 +98,16 @@ impl IYieldSource for BurrowYieldSource{
         ext_fungible_token::ft_transfer_call(self.address.clone(), amount.into(), None, "".to_string(), token_id.clone(), 1, gas::GAS_FOR_TRANSFER_TO_DEFI);
     }
 
+    fn withdraw(&self, receiver_id: &AccountId, token_id: &AccountId, amount: Balance) {
+        let asset_amount = AssetAmount{ token_id: token_id.clone(), amount: Some(U128(amount))};
+        let action = Action::Withdraw(
+            asset_amount
+        );
+
+        ext_defi::execute(vec![action], self.address.clone(), 1, gas::WITHDRAW_TOKENS_EXTERNAL_DEFI)
+        .then(crate::this_contract::on_after_withdraw_tokens_from_defi(receiver_id.clone(), amount.into(), env::current_account_id(), 0, gas::WITHDRAW_TOKENS_FROM_DEFI_CALLBACK));
+    }
+
 
     fn claim(&self, account_id: &AccountId, token_id: &AccountId, amount: Balance, draw_id: DrawId, pick: NumPicks) {
         let asset_amount = AssetAmount{ token_id: token_id.clone(), amount: Some(U128(amount))};
@@ -99,8 +122,9 @@ impl IYieldSource for BurrowYieldSource{
     fn get_action_required_deposit_and_gas(&self, action: YieldSourceAction) -> (Balance, Gas){
         let result:(Balance, Gas) = match action {
             YieldSourceAction::GetReward => (0, gas::GET_BALANCE_FROM_DEFI + gas::GET_BALANCE_FROM_DEFI),
-            YieldSourceAction::Claim => (1+1, gas::GAS_FOR_FT_TRANSFER + gas::GAS_FOR_FT_TRANSFER),
+            YieldSourceAction::Claim => (1+1, gas::CLAIM_REWARDS_CALLBACK + gas::CLAIM_REWARDS_EXTERNAL_DEFI),
             YieldSourceAction::Transfer => (1, GAS_FOR_TRANSFER_TO_DEFI),
+            YieldSourceAction::Withdraw => (1+1, gas::WITHDRAW_TOKENS_EXTERNAL_DEFI + gas::WITHDRAW_TOKENS_FROM_DEFI_CALLBACK)
         };
 
         return result;

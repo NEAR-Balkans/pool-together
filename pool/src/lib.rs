@@ -249,6 +249,24 @@ impl Contract {
     pub fn get_deposited_amount(&self) -> U128{
         return self.token.total_supply.into();
     }
+
+    #[payable]
+    pub fn withdraw(&mut self, ft_tokens_amount: U128){
+        let caller = env::signer_account_id();
+        let acc_supplied_balance = self.token.ft_balance_of(caller.clone());
+        assert!(ft_tokens_amount.0 <= acc_supplied_balance.0);
+        
+        let ys = self.get_yield_source();
+        let (deposit, gas) = ys.get_action_required_deposit_and_gas(YieldSourceAction::Withdraw);
+        
+        if env::attached_deposit() < deposit{
+            self.assert_sender_has_deposited_enough(&caller, deposit);
+            self.decrement_user_near_deposit(&caller, Some(deposit));
+        }
+        assert!(env::prepaid_gas() >= gas);
+        
+        ys.withdraw(&caller, &self.deposited_token_id, ft_tokens_amount.0);
+    }
 }
 
 near_contract_standards::impl_fungible_token_core!(Contract, token, on_tokens_burned);

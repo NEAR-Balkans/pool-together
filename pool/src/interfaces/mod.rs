@@ -46,6 +46,7 @@ pub mod defi {
         Transfer,
         Claim,
         GetReward,
+        Withdraw,
     }
 
     pub trait IYieldSource{
@@ -53,6 +54,7 @@ pub mod defi {
         fn transfer(&self, token_id: &AccountId, amount: Balance);
         fn claim(&self, account_id: &AccountId, token_id:&AccountId, amount: Balance, draw_id: DrawId, pick: NumPicks);
         fn get_action_required_deposit_and_gas(&self, action: YieldSourceAction) -> (Balance, Gas);
+        fn withdraw(&self, receiver_id: &AccountId, token_id: &AccountId, amount: Balance);
     }
 }
 
