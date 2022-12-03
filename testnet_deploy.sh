@@ -24,7 +24,7 @@ near create-account $POOL --masterAccount=$MASTER_ACCOUNT --initialBalance=10
 near create-account $DRAW --masterAccount=$MASTER_ACCOUNT --initialBalance=10
 
 echo "Deploying"
-near deploy --accountId $DRAW --wasmFile ./res/draw.wasm --initFunction new --initArgs '{}'
+near deploy --accountId $DRAW --wasmFile ./res/draw.wasm --initFunction new --initArgs '{"owner_id": "'$DRAW'"}'
 
 near deploy --accountId $POOL --wasmFile ./res/pool.wasm --initFunction new_default_meta --initArgs '{
       "owner_id": "'$POOL'", 

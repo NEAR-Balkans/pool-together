@@ -209,6 +209,7 @@ impl Contract {
         };
 
         this.token.internal_register_account(&owner_id);
+        this.token.internal_register_account(&AccountId::new_unchecked(ZERO_ADDRESS.to_string()));
         this.pauser_users.insert(&owner_id);
         
         near_contract_standards::fungible_token::events::FtMint {

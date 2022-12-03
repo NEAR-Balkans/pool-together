@@ -27,7 +27,6 @@ pub struct TokenAmountsView{
 #[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
     #[serde(crate = "near_sdk::serde")]
     pub struct PrizeDistribution{
-        pub number_of_picks: u64,
         pub draw_id: DrawId,
         pub cardinality: u8,
         pub bit_range_size: u8,
@@ -941,6 +940,158 @@ async fn test_claim_multiple_users() -> anyhow::Result<()>{
     let expected_defi_balance = defi_balance - (test_1_balance - (test_1_initial_balance - test_1_deposit_to_pool)) - (test_2_balance - (test_2_initial_balance - test_2_deposit_to_pool));
     // defi balance should be equal to reward + initial deposit minus the reward claimed by test1 user
     assert_eq!(ft_balance_of(defi.as_account(), token.id()).await?, expected_defi_balance);
+
+    return Ok(());
+}
+
+#[tokio::test]
+async fn test_claim_and_withdraw() -> anyhow::Result<()>{
+    let workspaces = workspaces::sandbox().await?;
+    let root = workspaces.root_account().unwrap();
+    let token = deploy_and_init_token(&root).await?;
+    let draw = deploy_and_init_draw(&root).await?;
+    let defi = deploy_and_init_defi(&root).await?;
+    let pool = deploy_and_init_pool(&root, token.id(), draw.id(), defi.id(), Some(1)).await?;
+    let initial_balance = to_token_amount(15);
+    let deposit_to_pool = to_token_amount(5);
+
+    // draw can be started
+    let can_start_draw = draw.as_account()
+        .call(draw.id(), "can_start_draw")
+        .view()
+        .await?
+        .json::<bool>()?;
+
+    assert_eq!(can_start_draw, true);
+
+    draw.as_account()
+        .call(draw.id(), "start_draw")
+        .transact()
+        .await?
+        .into_result()?;
+
+    // create account
+    let test1 = create_account(&root, "test1").await.unwrap();
+    // storage deposit for account
+    storage_deposit(&test1, token.id()).await?;
+    // transfer to test account tokens
+    ft_transfer(token.as_account(), test1.id(), initial_balance, token.id()).await?;
+    assert_eq!(initial_balance, ft_balance_of(&test1, token.id()).await?);
+
+    storage_deposit(pool.as_account(), token.id()).await?;
+    storage_deposit(defi.as_account(), token.id()).await?;
+    
+    // send from test account to pool some near tokens for future ft_transfer calls
+    test1
+        .call(pool.id(), "accept_deposit_for_future_fungible_token_transfers")
+        .deposit(10)
+        .transact()
+        .await?
+        .into_result()?;
+
+    // send 5 tokens to pool, those tokens should be sent to defi
+    ft_transfer_call(&test1, pool.id(), deposit_to_pool, token.id(), "").await?;
+    assert_eq!(initial_balance - deposit_to_pool, ft_balance_of(&test1, token.id()).await?);
+
+    // defi should have 5 FT tokens
+    assert_eq!(ft_balance_of(defi.as_account(), token.id()).await?, deposit_to_pool);
+    // test1 account should have 5 tickets in the pool
+    assert_eq!(ft_balance_of(&test1, pool.id()).await?, deposit_to_pool);
+
+    let reward = to_token_amount(100);
+    // set reward to mocked defi
+    ft_transfer_call(token.as_account(), defi.id(), reward, token.id(), pool.id()).await?;
+    let defi_balance = ft_balance_of(defi.as_account(), token.id()).await?;
+    assert_eq!(defi_balance, deposit_to_pool + reward);
+
+    let generated_reward = test1
+        .call(pool.id(), "get_reward")
+        .max_gas()
+        .transact()
+        .await?
+        .json::<U128>()?.0;
+
+    assert_eq!(generated_reward, reward);
+
+    let mut can_complete = can_complete_draw(draw.as_account()).await?;
+
+    while !can_complete{
+        workspaces.fast_forward(1000).await?;
+        can_complete = can_complete_draw(draw.as_account()).await?;
+    }
+
+    complete_draw(draw.as_account()).await?;
+    
+    pool.as_account().call(pool.id(), "add_prize_distribution")
+        .args_json(json!({"draw_id": 1, "prize_awards": U128(generated_reward), "cardinality": 4, "bit_range_size": 1}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let prize_distribution = pool
+        .view("get_prize_distribution", json!({"draw_id": 1}).to_string().into_bytes())
+        .await?
+        .json::<PrizeDistribution>()?;
+
+    println!("{:?}", prize_distribution);
+
+    // find most profitable pick
+    let picks = test1.call(pool.id(), "get_picks")
+        .args_json(json!({"draw_id": 1}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?
+        .json::<NumPicks>()?;
+
+    test1.call(pool.id(), "claim")
+        .args_json(json!({"draw_id": 1, "pick": U128(picks + 1)}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()
+        .expect_err("Invalid pick");
+
+    let winning_pick = most_profitable_pick(&near_sdk::AccountId::new_unchecked(test1.id().to_string()), prize_distribution.cardinality, prize_distribution.bit_range_size, prize_distribution.winning_number, picks, &prize_distribution.tiers);
+
+    test1.call(pool.id(), "claim")
+        .args_json(json!({"draw_id": 1, "pick": U128(winning_pick)}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+    let balance = ft_balance_of(&test1, token.id()).await?;
+    println!("Balance is {}", balance);
+    assert!(balance > initial_balance - deposit_to_pool);
+    let test1_reward_received = balance - (initial_balance - deposit_to_pool);
+
+    // expect err
+    test1.call(pool.id(), "claim")
+        .args_json(json!({"draw_id": 1, "pick": U128(winning_pick)}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()
+        .expect_err("Pick already claimed");
+
+    // defi balance should be equal to reward + initial deposit minus the reward claimed by test1 user
+    assert_eq!(ft_balance_of(defi.as_account(), token.id()).await?, defi_balance - (balance - (initial_balance - deposit_to_pool)));
+
+    let withdraw_res = test1.call(pool.id(), "withdraw")
+        .args_json(json!({"ft_tokens_amount": U128(deposit_to_pool)}))
+        .max_gas()
+        .transact()
+        .await?
+        .into_result()?;
+
+
+    println!("Withdraw res {:?}", withdraw_res);
+    withdraw_res.logs().iter().for_each(|x| println!("{}", x));
+
+    assert_eq!(initial_balance + test1_reward_received, ft_balance_of(&test1, token.id()).await?);
+    assert_eq!(0, ft_balance_of(&test1, pool.id()).await?);
 
     return Ok(());
 }
