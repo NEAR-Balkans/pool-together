@@ -179,6 +179,7 @@ async fn deploy_and_init_draw(owner: &Account) -> anyhow::Result<Contract>{
 
     draw_contract
         .call("new")
+        .args_json(json!({"owner_id": draw_acc.id()}))
         .gas(DEFAULT_GAS)
         .transact()
         .await?

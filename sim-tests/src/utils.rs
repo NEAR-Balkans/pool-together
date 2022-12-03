@@ -243,7 +243,11 @@ impl Env{
             draw_bytes(),
             AccountId::new_unchecked(DRAW_ID.to_string()),
             "new",
-            &[],
+            &json!({
+                "owner_id": DRAW_ID
+            })
+            .to_string()
+            .into_bytes(),
             to_yocto("10"),
             MAX_GAS.0,
         );

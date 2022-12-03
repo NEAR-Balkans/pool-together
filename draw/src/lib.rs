@@ -1,6 +1,6 @@
 use common::generic_ring_buffer::{GenericRingBuffer, RingBuffer, Identifier};
 use common::types::{DrawId, U256};
-use near_sdk::{env, near_bindgen, EpochHeight, PanicOnDefault};
+use near_sdk::{env, near_bindgen, EpochHeight, PanicOnDefault, AccountId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use interfaces::draw::{DrawCreator, Draw, DrawBuffer, DrawRegister};
 
@@ -19,6 +19,7 @@ pub struct Contract{
     last_epoch_started: EpochHeight,
     is_started: bool,
     temp_draw: Draw,
+    owner_id: AccountId,
 }
 
 fn as_u256(arr: &[u8; 32]) -> U256{
@@ -49,12 +50,15 @@ impl Identifier<DrawId> for Draw{
 #[near_bindgen]
 impl Contract{
     #[init]
-    pub fn new() -> Self{
+    pub fn new(owner_id: AccountId) -> Self{
+        assert!(env::is_valid_account_id(owner_id.as_bytes()), "The owner ID is invalid");
+
         Self { 
             draw_buffer: GenericRingBuffer::<Draw, DrawId, DRAW_BUFFER_CAPACITY>::new(), 
             last_epoch_started: 0, 
             is_started: false, 
             temp_draw: Draw::default(),
+            owner_id: owner_id
         }
     }
 }
@@ -97,6 +101,7 @@ impl DrawCreator for Contract{
         if !self.can_start_draw(){
             return;
         }
+        assert_eq!(self.owner_id, env::signer_account_id(), "Only owner can start draw");
 
         self.is_started = true;
         self.last_epoch_started = env::epoch_height();
@@ -110,6 +115,7 @@ impl DrawCreator for Contract{
         if !self.can_complete_draw() {
             return;
         }
+        assert_eq!(self.owner_id, env::signer_account_id(), "Only owner can complete draw");
 
         self.is_started = false;
         self.last_epoch_started = 0;

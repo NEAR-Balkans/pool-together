@@ -90,7 +90,7 @@ pub mod tests {
                 .account_balance(ntoy(10))
                 .build();
             testing_env!(context.clone());
-            let contract = Contract::new();
+            let contract = Contract::new(owner());
             Emulator {
                 contract,
                 epoch_height: 0,
