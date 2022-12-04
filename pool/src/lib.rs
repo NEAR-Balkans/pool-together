@@ -281,6 +281,7 @@ impl Contract {
     /// Add authorized user to pause/unpause the contract
     pub fn add_pauser_user(&mut self, account_id: AccountId) {
         self.assert_owner();
+        assert!(env::is_valid_account_id(account_id.as_bytes()), "Invalid account id");
         self.pauser_users.insert(&account_id);
     }
 
