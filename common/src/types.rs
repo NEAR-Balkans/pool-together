@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Serialize, Deserialize};
 use uint::construct_uint;
 
-pub type DrawId = u128;
+pub type DrawId = u32;
 pub type NumPicks = u128;
 
 construct_uint!{

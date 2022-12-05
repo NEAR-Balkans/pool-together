@@ -1,6 +1,6 @@
-use common::generic_ring_buffer::{GenericRingBuffer, RingBuffer};
+use common::generic_ring_buffer::{GenericRingBuffer, RingBuffer, Identifier};
 use common::types::{DrawId, U256};
-use near_sdk::{env, near_bindgen, EpochHeight, PanicOnDefault};
+use near_sdk::{env, near_bindgen, EpochHeight, PanicOnDefault, AccountId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use interfaces::draw::{DrawCreator, Draw, DrawBuffer, DrawRegister};
 
@@ -15,10 +15,11 @@ mod test_utils;
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract{
-    pub draw_buffer: GenericRingBuffer<Draw, DRAW_BUFFER_CAPACITY>,
-    pub last_epoch_started: EpochHeight,
-    pub is_started: bool,
-    pub temp_draw: Draw,
+    draw_buffer: GenericRingBuffer<Draw, DrawId, DRAW_BUFFER_CAPACITY>,
+    last_epoch_started: EpochHeight,
+    is_started: bool,
+    temp_draw: Draw,
+    owner_id: AccountId,
 }
 
 fn as_u256(arr: &[u8; 32]) -> U256{
@@ -40,19 +41,26 @@ fn random_u256() -> U256{
     return as_u256(random_seed.as_slice().try_into().expect("random seed of incorrect length"));
 }
 
+impl Identifier<DrawId> for Draw{
+    fn id(&self) -> DrawId {
+        self.draw_id
+    }
+}
+
 #[near_bindgen]
 impl Contract{
     #[init]
-    pub fn new() -> Self{
+    pub fn new(owner_id: AccountId) -> Self{
+        assert!(env::is_valid_account_id(owner_id.as_bytes()), "The owner ID is invalid");
+
         Self { 
-            draw_buffer: GenericRingBuffer::<Draw, DRAW_BUFFER_CAPACITY>::default(), 
+            draw_buffer: GenericRingBuffer::<Draw, DrawId, DRAW_BUFFER_CAPACITY>::new(), 
             last_epoch_started: 0, 
             is_started: false, 
             temp_draw: Draw::default(),
+            owner_id: owner_id
         }
     }
-
-    
 }
 
 #[near_bindgen]
@@ -70,28 +78,30 @@ impl DrawRegister for Contract{
 #[near_bindgen]
 impl DrawBuffer for Contract{
     fn get_draw(&self, id: DrawId) -> Draw{
-        return self
-            .draw_buffer
-            .arr
-            .into_iter()
-            .find(|&el| el.draw_id == id).unwrap_or_default();
+        return self.draw_buffer.get_by_identifier(id);
     }
 }
 
 #[near_bindgen]
 impl DrawCreator for Contract{
+    /// Returns true/false whether a draw has started or not
+    /// if true then a draw is not started, otherwise a draw is started
     fn can_start_draw(&self) -> bool{
         return !self.is_started;
     }
 
+    /// Returns true/false whether a draw can be completed
+    /// if false then a draw has not started yet or the draw duration has not passed
     fn can_complete_draw(&self) -> bool {
         return self.is_started && env::epoch_height() >= self.last_epoch_started + DRAW_DURATION_IN_EPOCHS;
     }
 
+    /// Starts a draw, internally checks if draw can be started
     fn start_draw(&mut self) {
         if !self.can_start_draw(){
             return;
         }
+        assert_eq!(self.owner_id, env::signer_account_id(), "Only owner can start draw");
 
         self.is_started = true;
         self.last_epoch_started = env::epoch_height();
@@ -99,10 +109,13 @@ impl DrawCreator for Contract{
         self.temp_draw.draw_id = self.temp_draw.draw_id + 1;
     }
 
+    /// Completes a draw, internally checks if draw can be completed
+    /// The completed draw is added to the ring buffer
     fn complete_draw(&mut self) {
         if !self.can_complete_draw() {
             return;
         }
+        assert_eq!(self.owner_id, env::signer_account_id(), "Only owner can complete draw");
 
         self.is_started = false;
         self.last_epoch_started = 0;
@@ -122,6 +135,15 @@ pub mod tests {
     use super::*;
     use crate::test_utils::tests::*;
 
+    impl PartialEq for Draw{
+        fn eq(&self, other: &Self) -> bool {
+            self.completed_at == other.completed_at
+                && self.draw_id == other.draw_id
+                && self.started_at == other.started_at
+                && self.winning_random_number == other.winning_random_number
+        }
+    }
+
     fn generate_random_seed() -> [u8; 32]{
         return rand::thread_rng().gen::<[u8; 32]>();
     }
@@ -139,8 +161,29 @@ pub mod tests {
     }
 
     #[test]
+    fn test_ring_buffer_space_management(){
+        let mut buffer = GenericRingBuffer::<Draw, DrawId, 3>::new();
+        let mut current_draw = Draw::default();
+
+        current_draw.winning_random_number = U256::from(1);
+        current_draw.draw_id = 12;
+        buffer.add(&current_draw);
+        
+        current_draw.winning_random_number = U256::from(2);
+        current_draw.draw_id = 21;
+        buffer.add(&current_draw);
+        current_draw.winning_random_number = U256::from(3);
+        current_draw.draw_id = 300;
+        buffer.add(&current_draw);
+        current_draw.winning_random_number = U256::from(4);
+        current_draw.draw_id = 100;
+        buffer.add(&current_draw);
+        assert_eq!(buffer.get_by_identifier(12), Draw::default())
+    }
+
+    #[test]
     fn test_ring_buffer() {
-        let mut buffer = GenericRingBuffer::<Draw, 3>::new();
+        let mut buffer = GenericRingBuffer::<Draw, DrawId, 3>::new();
         let mut current_draw = Draw::default();
         
         current_draw.winning_random_number = U256::from(1);
@@ -152,10 +195,10 @@ pub mod tests {
         current_draw.winning_random_number = U256::from(4);
         buffer.add(&current_draw);
         
-        assert!(buffer.get(0).winning_random_number == U256::from(4));
+        assert!(buffer.get_by_index(0).winning_random_number == U256::from(4));
         current_draw.winning_random_number = U256::from(5);
         buffer.add(&current_draw);
-        assert!(buffer.get(1).winning_random_number == U256::from(5));
+        assert!(buffer.get_by_index(1).winning_random_number == U256::from(5));
     }
 
     #[test]

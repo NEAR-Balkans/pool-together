@@ -1,3 +1,6 @@
+use crate::Contract;
+use crate::env;
+
 pub mod storage_keys{
     use near_sdk::{BorshStorageKey, CryptoHash};
     use near_sdk::borsh::{self, BorshSerialize};
@@ -10,6 +13,11 @@ pub mod storage_keys{
         TotalSupplyAccountBalance,
         AccountPicks,
         AccountDrawPicks {account_hash: CryptoHash},
+        Token,
+        TokenMetadata,
+        UserNearDeposit,
+        AccountClaimedPicks{account_hash: CryptoHash},
+        PauserUser,
     }
 }
 
@@ -33,17 +41,27 @@ pub mod utils{
     } 
 }
 
-pub mod gas{
-    use near_sdk::{Gas, Balance};
+impl Contract{
+    pub(crate) fn assert_owner(&self){
+        assert_eq!(self.owner_id, env::signer_account_id());
+    }
 
-    pub const GET_DRAW: Gas = Gas(20_000_000_000_000);
-    pub const ONE_YOCTO: Balance = 1;
+    pub(crate) fn assert_pauser_user(&self){
+        assert!(self.pauser_users.contains(&env::signer_account_id()));
+    }
+}
+
+pub mod gas{
+    use near_sdk::{Gas};
+
+    pub const ON_GET_DRAW: Gas = Gas(15_000_000_000_000);
+    pub const GET_DRAW: Gas = Gas(1_000_000_000_000);
     pub const GET_BALANCE_FROM_DEFI: Gas = Gas(20_000_000_000_000);
+    pub const CLAIM_REWARDS_CALLBACK: Gas = Gas(50_000_000_000_000);
+    pub const CLAIM_REWARDS_EXTERNAL_DEFI: Gas = Gas(50_000_000_000_000);
+    pub const WITHDRAW_TOKENS_FROM_DEFI_CALLBACK: Gas = Gas(50_000_000_000_000);
+    pub const WITHDRAW_TOKENS_EXTERNAL_DEFI: Gas = Gas(50_000_000_000_000);
     
     pub const GAS_FOR_FT_TRANSFER: Gas = Gas(Gas::ONE_TERA.0 * 10);
-    pub const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas(300_000_000_000_000);
-    pub const GAS_FOR_AFTER_FT_TRANSFER: Gas = Gas(Gas::ONE_TERA.0 * 20);
     pub const GAS_FOR_TRANSFER_TO_DEFI:Gas = Gas(Gas::ONE_TERA.0 * 100);
-    
-    pub const MAX_GAS: Gas = Gas(300_000_000_000_000);
 }

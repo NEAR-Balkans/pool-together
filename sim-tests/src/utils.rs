@@ -84,6 +84,21 @@ pub fn storage_deposit(
     .assert_success();
 }
 
+pub fn add_near_tokens_for_future_transfer_calls(
+    user: &UserAccount,
+    contract_id: &AccountId,
+    yocto: Balance
+){
+    user.call(
+        contract_id.clone().into(), 
+        "accept_deposit_for_future_fungible_token_transfers", 
+        &json!({}).to_string().into_bytes(), 
+        DEFAULT_GAS.0, 
+        yocto
+    )
+    .assert_success();
+}
+
 pub fn ft_balance_of(
     token: &AccountId,
     user: &UserAccount
@@ -228,7 +243,11 @@ impl Env{
             draw_bytes(),
             AccountId::new_unchecked(DRAW_ID.to_string()),
             "new",
-            &[],
+            &json!({
+                "owner_id": DRAW_ID
+            })
+            .to_string()
+            .into_bytes(),
             to_yocto("10"),
             MAX_GAS.0,
         );
@@ -244,7 +263,8 @@ impl Env{
                 "owner_id": POOL_ID, 
                 "token_for_deposit": FT_ID, 
                 "draw_contract": DRAW_ID, 
-                "burrow_address": DEFI_ID
+                "burrow_address": DEFI_ID,
+                "reward_token": FT_ID,
             })
             .to_string()
             .into_bytes(),
